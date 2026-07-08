@@ -178,7 +178,7 @@
 
   <div class="addrow">
     <input id="miles" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="Miles" aria-label="Miles run">
-    <input id="mins" type="text" inputmode="numeric" placeholder="mm:ss" aria-label="Time to complete (optional)">
+    <input id="mins" type="text" inputmode="decimal" placeholder="mm:ss" aria-label="Time to complete (optional)">
     <button id="addBtn">Add run</button>
   </div>
   <div class="chips" role="group" aria-label="Quick add">
@@ -195,7 +195,7 @@
   <footer>
     <button class="linky" id="editTarget">Change target</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B5</div>
+    <div class="build">TREAD B6</div>
   </footer>
 </div>
 
@@ -230,7 +230,7 @@ function fmtTime(t){
   return h ? h+':'+p2(m)+':'+p2(sec) : m+':'+p2(sec);
 }
 function parseTime(v){
-  v = (''+v).trim();
+  v = (''+v).trim().replace(/[.\s:]+/g, ':').replace(/^:+|:+$/g, '');
   if(!v) return null;
   if(v.indexOf(':')>-1){
     var p = v.split(':');
@@ -240,8 +240,7 @@ function parseTime(v){
     else { if(n[1]>59) return null; sec = n[0]*60+n[1]; }
     return (sec>0 && sec<86400) ? sec : null;
   }
-  if(!/^\d+(\.\d+)?$/.test(v)) return null;
-  if(v.indexOf('.')>-1){ var s2=Math.round(parseFloat(v)*60); return (s2>0&&s2<86400)?s2:null; }
+  if(!/^\d+$/.test(v)) return null;
   if(v.length<=2) return +v>0 ? +v*60 : null;
   if(v.length<=4){ var ss=+v.slice(-2); if(ss>59) return null; return +v.slice(0,-2)*60+ss; }
   return null;
@@ -399,8 +398,8 @@ $('log').addEventListener('click', function(e){
   var tb = e.target.closest('button[data-time]');
   if(tb){
     var en2 = byId(tb.dataset.time); if(!en2) return;
-    ask({ title:'Time to complete', text:'e.g. 32:15 or just minutes \u2014 leave empty to clear.',
-          input:true, type:'text', inputmode:'numeric', placeholder:'mm:ss',
+    ask({ title:'Time to complete', text:'Colon, dot or space all work \u2014 25.58 means 25:58. Empty clears it.',
+          input:true, type:'text', inputmode:'decimal', placeholder:'mm:ss',
           value: en2.t ? fmtTime(en2.t) : '',
           onOk:function(v){
             v = (''+v).trim();
