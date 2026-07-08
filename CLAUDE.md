@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B6 · sw.js CACHE `tread-v6` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B7 · sw.js CACHE `tread-v7` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -38,7 +38,12 @@ that way. Any schema change needs defensive defaults on load (see top of script)
 
 ## Physics constants (frame loop)
 
-- Fill axis: `TOPY=76` (heel top) to `BOTY=546` (toe tip); level = `BOTY-(BOTY-TOPY)*fill`.
+- Liquid level is **volume-conserving**, not height-based: `VCOLS` (baked array of
+  `[x, yTop, yBottom]` strips of the shoe interior, 8px apart) gives the vessel's shape;
+  `solveCut(frac, tan)` bisects for the surface line whose wet area = fill fraction at
+  the current angle. This is why the puddle can't vanish or flood when tilted. `TOPY`/`BOTY`
+  remain only for bubble spawn positions. Wave amplitude is damped near empty/full
+  (`effAmp`) so slosh never pops above the toe or the collar.
 - `CX=190` liquid pivot x; `PIVY=250` shoe gimbal pivot; surface sampled `L=20`→`R=360`, floor `640`.
 - Springs (semi-implicit Euler, `spring(state,target,w,zeta,dt)`):
   shoe `w=9 ζ=0.45` (speedy self-right, slight overshoot) · liquid `w=6.5 ζ=0.30` (sloshy)
@@ -50,7 +55,9 @@ that way. Any schema change needs defensive defaults on load (see top of script)
 Portrait paths were baked from a landscape master via the mapping `(x,y) → (391−y, x)`
 (90° clockwise). If editing the drawing, edit the baked coordinates in place — small
 tweaks are fine by hand. Icons are renders of the same paths at 55% fill; if the shoe
-changes materially, regenerate both PNGs to match.
+changes materially, regenerate both PNGs to match. **If the silhouette changes at all,
+`VCOLS` in index.html must be re-derived** (rasterize the silhouette at 380×620, take
+vertical strips every 8px, record `[x, firstY+1, lastY-1]`) or liquid volume will be wrong.
 
 ## Testing gotchas
 
@@ -67,7 +74,7 @@ changes materially, regenerate both PNGs to match.
 Edit → bump `TREAD B<n>` + `tread-v<n>` → commit → push via GitHub Desktop → open the
 Pages URL, refresh twice, confirm footer shows the new build number.
 
-## Shipped in B3–B6 (so you don't rebuild them)
+## Shipped in B3–B7 (so you don't rebuild them)
 
 Milestone toasts on crossing 5/10/25/35/50/75/100/150/200/250/300/350/400 total miles;
 first-run and first single-run ≥3.1 mi ("full 5K") moments; new-longest-run toast;
@@ -86,6 +93,11 @@ B5: per-run pace (min/mi) shown in small text under the time in each log row —
 always computed as `t / m`, never entered, no averages or cross-run comparisons.
 
 B6: time inputs use `inputmode="decimal"` so the keypad reliably offers a full stop.
+
+B7: volume-conserving liquid. The old model held a fixed-height surface pivoting on
+x=190, so at low fill a tilt could lift the plane off the toe puddle entirely (liquid
+vanished) or plunge it across the toe (flooded). Now fill % maps to **volume**, so the
+level follows the vessel shape — the narrow toe fills fast, the wide midfoot slower.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
