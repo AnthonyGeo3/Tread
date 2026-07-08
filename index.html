@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tread — Trainer Tracker</title>
+<meta name="theme-color" content="#e6e7e2">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  :root{
+    --bg1:#eef0ea; --bg2:#dbddd6; --ink:#191c1a; --muted:#6d726b;
+    --line:#cbcfc7; --surface:#f7f8f4; --volt:#c9f21e; --volt-ink:#141804;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    background:radial-gradient(130% 90% at 50% -5%, var(--bg1) 40%, var(--bg2) 100%) fixed;
+    min-height:100dvh;
+    padding:calc(14px + env(safe-area-inset-top)) 18px calc(20px + env(safe-area-inset-bottom));
+  }
+  .wrap{max-width:460px; margin:0 auto}
+  button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; touch-action:manipulation}
+  :focus-visible{outline:2px solid var(--ink); outline-offset:2px; border-radius:6px}
+
+  /* header */
+  .eyebrow{font-size:11px; font-weight:700; letter-spacing:.24em; color:var(--muted); text-transform:uppercase}
+  h1{font-size:26px; font-weight:900; font-style:italic; letter-spacing:-.02em; margin-top:3px}
+  .sub{font-size:13px; color:var(--muted); margin-top:1px}
+  .top{display:flex; justify-content:space-between; align-items:flex-start; gap:12px}
+  #motionBtn{
+    flex:none; margin-top:4px; font-size:12px; font-weight:700; padding:8px 12px;
+    border:1.5px solid var(--ink); border-radius:999px; background:var(--surface);
+  }
+
+  /* stage */
+  #stage{position:relative; margin:4px 0 0; touch-action:pan-y; -webkit-user-select:none; user-select:none}
+  #stage svg{display:block; margin:0 auto; width:auto; height:clamp(320px,46vh,540px); height:clamp(320px,46dvh,540px)}
+  .hint{position:absolute; bottom:2px; right:14px; font-size:10.5px; color:var(--muted); letter-spacing:.06em; opacity:.8; pointer-events:none}
+
+  /* readout */
+  .readout{margin-top:-6px}
+  .bigrow{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap}
+  .big{font-size:clamp(58px,19vw,86px); font-weight:900; font-style:italic; letter-spacing:-.045em; line-height:.95}
+  .big small{font-size:.45em; letter-spacing:-.02em}
+  .chip{display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:700;
+        padding:7px 12px; border-radius:999px; background:var(--surface); border:1px solid var(--line);
+        transform:translateY(-8px)}
+  .chip i{width:9px; height:9px; border-radius:50%; background:var(--volt); flex:none}
+  .stats{margin-top:6px; font-size:14.5px; color:var(--muted)}
+  .stats b{color:var(--ink); font-weight:800}
+
+  .stats2{margin-top:3px; font-size:13.5px}
+  .toast{
+    position:absolute; top:8px; left:50%; transform:translateX(-50%) translateY(-8px);
+    max-width:90%; text-align:center; background:var(--volt); color:var(--volt-ink);
+    font-weight:800; font-style:italic; font-size:14px; padding:10px 16px; border-radius:999px;
+    box-shadow:0 8px 20px rgba(20,24,18,.2); opacity:0; transition:opacity .35s, transform .35s;
+    pointer-events:none;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+
+  /* add */
+  .addrow{display:flex; gap:10px; margin-top:18px}
+  .addrow input{
+    flex:1; min-width:0; font-size:17px; font-weight:700; padding:14px 16px;
+    background:var(--surface); border:1.5px solid var(--line); border-radius:16px; color:var(--ink);
+  }
+  .addrow input::placeholder{color:#a2a79f; font-weight:600}
+  .addrow input:focus{border-color:var(--ink); outline:none}
+  .addrow input.bad{border-color:#d5361f}
+  #addBtn{
+    flex:none; background:var(--volt); color:var(--volt-ink); font-weight:900; font-style:italic;
+    letter-spacing:.01em; font-size:16px; padding:14px 18px; border-radius:16px;
+    box-shadow:0 2px 0 #9dbf0f;
+  }
+  #addBtn:active{transform:translateY(1px); box-shadow:0 1px 0 #9dbf0f}
+  .chips{display:flex; gap:8px; margin-top:10px}
+  .chips button{
+    font-size:13.5px; font-weight:700; padding:8px 14px; border-radius:999px;
+    border:1.5px solid var(--line); background:var(--surface); color:var(--ink);
+  }
+  .chips button:active{background:var(--line)}
+
+  /* log */
+  .hist{margin-top:26px}
+  #log{list-style:none; margin-top:4px}
+  #log li{display:flex; align-items:center; gap:12px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14.5px}
+  #log .d{color:var(--muted); flex:1; text-align:left; text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
+  #log .t{color:var(--muted); font-variant-numeric:tabular-nums; min-width:58px;
+          display:flex; flex-direction:column; align-items:flex-end; gap:1px}
+  #log .t .tv{text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
+  #log .t .p{font-size:11px; color:#90958d}
+  #log .m{font-weight:800; font-style:italic; min-width:60px; text-align:right}
+  #log .del{color:var(--muted); font-size:17px; padding:4px 8px; line-height:1; border-radius:8px}
+  #log .del:active{color:var(--ink); background:var(--line)}
+  .empty{padding:14px 2px; color:var(--muted); font-size:14px}
+
+  /* footer */
+  footer{display:flex; align-items:center; gap:6px; margin-top:22px; font-size:13px; color:var(--muted)}
+  .linky{font-size:13px; font-weight:700; color:var(--ink); text-decoration:underline; text-underline-offset:3px; padding:4px 2px}
+  .build{margin-left:auto; font-size:11px; letter-spacing:.14em}
+
+  /* dialog */
+  dialog{
+    border:0; border-radius:20px; padding:22px; width:min(88vw,340px);
+    background:var(--surface); color:var(--ink); box-shadow:0 18px 50px rgba(20,24,18,.25);
+  }
+  dialog::backdrop{background:rgba(25,28,26,.35)}
+  dialog h2{font-size:18px; font-weight:900; font-style:italic}
+  dialog p{font-size:14px; color:var(--muted); margin-top:6px}
+  dialog input{
+    width:100%; margin-top:14px; font-size:17px; font-weight:700; padding:12px 14px;
+    border:1.5px solid var(--line); border-radius:14px; background:#fff;
+  }
+  .dlgrow{display:flex; gap:10px; margin-top:16px}
+  .dlgrow button{flex:1; font-weight:800; padding:12px; border-radius:14px; border:1.5px solid var(--line)}
+  .dlgrow .ok{background:var(--ink); color:#fff; border-color:var(--ink)}
+  .dlgrow .ok.danger{background:#d5361f; border-color:#d5361f}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Tread · Trainer tracker</div>
+      <h1>Nike Pegasus 40</h1>
+      <div class="sub">Wolf Grey / Volt</div>
+    </div>
+    <button id="motionBtn" hidden>Enable tilt</button>
+  </header>
+
+  <div id="stage">
+    <svg id="shoeSvg" viewBox="0 0 380 620" role="img" aria-label="Nike Pegasus 40 standing toe-down, filling with liquid as miles accumulate">
+ <defs>
+  <clipPath id="shoeClip"><path d="M 95.0 84.0 C 119.0 70.0 145.0 68.0 171.0 78.0 C 197.0 86.0 231.0 98.0 253.0 122.0 C 263.0 134.0 267.0 152.0 260.0 164.0 C 253.0 176.0 244.0 182.0 240.0 192.0 C 237.0 202.0 244.0 210.0 255.0 216.0 C 270.0 222.0 279.0 234.0 281.0 248.0 C 282.0 260.0 276.0 268.0 268.0 272.0 C 252.0 302.0 235.0 332.0 218.0 364.0 C 201.0 398.0 191.0 430.0 183.0 460.0 C 174.0 494.0 167.0 518.0 155.0 536.0 C 147.0 548.0 137.0 552.0 127.0 547.0 C 113.0 540.0 105.0 520.0 101.0 496.0 C 93.0 438.0 89.0 378.0 87.0 316.0 C 85.0 248.0 85.0 168.0 89.0 120.0 C 91.0 104.0 92.0 92.0 95.0 84.0 Z"/></clipPath>
+  <linearGradient id="gLiq" x1="0" y1="40" x2="0" y2="600" gradientUnits="userSpaceOnUse">
+    <stop id="sTop" offset="0" stop-color="#dcff55"/><stop id="sBot" offset="1" stop-color="#9fce14"/>
+  </linearGradient>
+ </defs>
+ <ellipse id="shadow" cx="172" cy="596" rx="88" ry="10" fill="#191c1a" opacity="0.18"/>
+ <g id="shoeG">
+  <g clip-path="url(#shoeClip)">
+    <rect x="0" y="0" width="380" height="620" fill="#d5d8d5"/>
+    <path d="M 103.0 88.0 C 127.0 74.0 149.0 72.0 173.0 80.0 C 199.0 88.0 231.0 100.0 252.0 124.0 C 223.0 116.0 191.0 108.0 155.0 106.0 C 131.0 105.0 115.0 108.0 101.0 118.0 Z" fill="#b9bdb9" opacity="0.8"/>
+    <path d="M 181.0 470.0 C 173.0 500.0 165.0 522.0 153.0 538.0 C 145.0 548.0 135.0 550.0 127.0 545.0 C 115.0 538.0 107.0 520.0 103.0 498.0 C 123.0 508.0 155.0 500.0 181.0 470.0 Z" fill="#c3c7c3" opacity="0.9"/>
+    <path d="M 253.0 214.0 C 271.0 220.0 280.0 234.0 281.0 248.0 C 282.0 260.0 276.0 268.0 268.0 272.0 C 259.0 262.0 245.0 250.0 229.0 244.0 L 235.0 220.0 Z" fill="#bfc3bf"/>
+    <path d="M 241.0 90.0 C 223.0 220.0 215.0 360.0 231.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/><path d="M 225.0 90.0 C 207.0 220.0 199.0 360.0 215.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/><path d="M 209.0 90.0 C 191.0 220.0 183.0 360.0 199.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/><path d="M 193.0 90.0 C 175.0 220.0 167.0 360.0 183.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/><path d="M 177.0 90.0 C 159.0 220.0 151.0 360.0 167.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/><path d="M 161.0 90.0 C 143.0 220.0 135.0 360.0 151.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/><path d="M 145.0 90.0 C 127.0 220.0 119.0 360.0 135.0 520.0" fill="none" stroke="#3a3d3a" stroke-width="1.4" opacity="0.07"/>
+    <path d="M 145.0 60.0 C 153.0 130.0 141.0 200.0 137.0 268.0 C 133.0 340.0 139.0 420.0 149.0 500.0 C 153.0 530.0 151.0 560.0 141.0 570.0 L 51.0 570.0 L 51.0 60.0 Z" fill="#fbfcfa"/>
+    <path d="M 99.0 60.0 C 90.0 160.0 86.0 300.0 92.0 420.0 C 96.0 482.0 103.0 546.0 117.0 574.0 L 51.0 574.0 L 51.0 60.0 Z" fill="#2b2e2c"/>
+    <g id="liquidG" display="none">
+      <path id="liquidPath" fill="url(#gLiq)" opacity="0.78"/>
+      <path id="meniscus" fill="none" stroke="#ffffff" stroke-width="2.2" opacity="0.3" stroke-linecap="round"/>
+      <g id="bubbles"></g>
+    </g>
+    <path d="M 243.0 224.0 C 263.0 262.0 243.0 300.0 207.0 372.0" fill="none" stroke="#c2c6c1" stroke-width="19" stroke-linecap="round"/><path d="M 243.0 224.0 C 263.0 262.0 243.0 300.0 207.0 372.0" fill="none" stroke="#8f938e" stroke-width="1.5" opacity="0.4"/><line x1="237.0" y1="238.0" x2="257.0" y2="272.0" stroke="#c9cdc9" stroke-width="9" stroke-linecap="round"/><line x1="234.0" y1="238.0" x2="254.0" y2="272.0" stroke="#9a9e99" stroke-width="2" stroke-linecap="round" opacity="0.5"/><line x1="221.0" y1="260.0" x2="243.0" y2="300.0" stroke="#c9cdc9" stroke-width="9" stroke-linecap="round"/><line x1="218.0" y1="260.0" x2="240.0" y2="300.0" stroke="#9a9e99" stroke-width="2" stroke-linecap="round" opacity="0.5"/><line x1="205.0" y1="284.0" x2="228.0" y2="328.0" stroke="#c9cdc9" stroke-width="9" stroke-linecap="round"/><line x1="202.0" y1="284.0" x2="225.0" y2="328.0" stroke="#9a9e99" stroke-width="2" stroke-linecap="round" opacity="0.5"/><line x1="191.0" y1="310.0" x2="213.0" y2="354.0" stroke="#c9cdc9" stroke-width="9" stroke-linecap="round"/><line x1="188.0" y1="310.0" x2="210.0" y2="354.0" stroke="#9a9e99" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+    <path d="M 181.0 414.0 C 157.0 400.0 137.0 372.0 131.0 336.0 C 121.0 270.0 159.0 198.0 215.0 156.0 C 220.0 152.0 225.0 154.0 221.0 160.0 C 177.0 206.0 147.0 264.0 145.0 328.0 C 141.0 364.0 157.0 392.0 177.0 404.0 C 185.0 408.0 187.0 412.0 181.0 414.0 Z" fill="#cdef31" stroke="#22261f" stroke-width="1.5" stroke-opacity="0.3"/>
+  </g>
+  <path d="M 95.0 84.0 C 119.0 70.0 145.0 68.0 171.0 78.0 C 197.0 86.0 231.0 98.0 253.0 122.0 C 263.0 134.0 267.0 152.0 260.0 164.0 C 253.0 176.0 244.0 182.0 240.0 192.0 C 237.0 202.0 244.0 210.0 255.0 216.0 C 270.0 222.0 279.0 234.0 281.0 248.0 C 282.0 260.0 276.0 268.0 268.0 272.0 C 252.0 302.0 235.0 332.0 218.0 364.0 C 201.0 398.0 191.0 430.0 183.0 460.0 C 174.0 494.0 167.0 518.0 155.0 536.0 C 147.0 548.0 137.0 552.0 127.0 547.0 C 113.0 540.0 105.0 520.0 101.0 496.0 C 93.0 438.0 89.0 378.0 87.0 316.0 C 85.0 248.0 85.0 168.0 89.0 120.0 C 91.0 104.0 92.0 92.0 95.0 84.0 Z" fill="none" stroke="#272a28" stroke-width="2.5" opacity="0.55"/>
+ </g>
+</svg>
+    <div class="hint" id="hint">tilt your phone</div>
+    <div class="toast" id="toast" hidden role="status"></div>
+  </div>
+
+  <section class="readout">
+    <div class="bigrow">
+      <div class="big"><span id="pct">0</span><small>%</small></div>
+      <span class="chip"><i id="dot"></i><span id="status">Box fresh</span></span>
+    </div>
+    <div class="stats"><b id="done">0.0</b> of <b id="tgt">400</b> mi &middot; <b id="left">400.0</b> mi to go</div>
+    <div class="stats stats2" id="stats2" hidden><b id="wkRuns">0</b> <span id="wkWord">runs</span> this week &middot; longest <b id="prMi">0.0</b> mi</div>
+  </section>
+
+  <div class="addrow">
+    <input id="miles" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="Miles" aria-label="Miles run">
+    <input id="mins" type="text" inputmode="numeric" placeholder="mm:ss" aria-label="Time to complete (optional)">
+    <button id="addBtn">Add run</button>
+  </div>
+  <div class="chips" role="group" aria-label="Quick add">
+    <button data-m="1">+1</button><button data-m="2">+2</button>
+    <button data-m="3.1">+5K</button><button data-m="6.2">+10K</button>
+  </div>
+
+  <section class="hist">
+    <div class="eyebrow">Run log</div>
+    <ul id="log"></ul>
+    <div class="empty" id="empty">No miles yet — log your first run and watch them fill up.</div>
+  </section>
+
+  <footer>
+    <button class="linky" id="editTarget">Change target</button>&middot;
+    <button class="linky" id="reset">New pair</button>
+    <div class="build">TREAD B5</div>
+  </footer>
+</div>
+
+<dialog id="dlg">
+  <h2 id="dlgTitle"></h2>
+  <p id="dlgText"></p>
+  <input id="dlgInput" type="number" inputmode="decimal" min="1" hidden>
+  <div class="dlgrow">
+    <button id="dlgCancel">Cancel</button>
+    <button id="dlgOk" class="ok">Save</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+'use strict';
+var $ = function(id){ return document.getElementById(id); };
+
+/* ---------- storage ---------- */
+function load(){ try{ return JSON.parse(localStorage.getItem('tread')||'null'); }catch(e){ return null; } }
+function save(){ try{ localStorage.setItem('tread', JSON.stringify(data)); }catch(e){} }
+var data = load() || { target:400, entries:[] };
+if(!(data.target>0)) data.target = 400;
+if(!Array.isArray(data.entries)) data.entries = [];
+
+var total = function(){ return data.entries.reduce(function(a,e){ return a+e.m; },0); };
+
+/* ---------- time helpers ---------- */
+function p2(n){ return (n<10?'0':'')+n; }
+function fmtTime(t){
+  var h=Math.floor(t/3600), m=Math.floor(t%3600/60), sec=t%60;
+  return h ? h+':'+p2(m)+':'+p2(sec) : m+':'+p2(sec);
+}
+function parseTime(v){
+  v = (''+v).trim();
+  if(!v) return null;
+  if(v.indexOf(':')>-1){
+    var p = v.split(':');
+    if(p.length>3 || p.some(function(x){ return !/^\d+$/.test(x); })) return null;
+    var n = p.map(Number), sec;
+    if(p.length===3){ if(n[1]>59||n[2]>59) return null; sec = n[0]*3600+n[1]*60+n[2]; }
+    else { if(n[1]>59) return null; sec = n[0]*60+n[1]; }
+    return (sec>0 && sec<86400) ? sec : null;
+  }
+  if(!/^\d+(\.\d+)?$/.test(v)) return null;
+  if(v.indexOf('.')>-1){ var s2=Math.round(parseFloat(v)*60); return (s2>0&&s2<86400)?s2:null; }
+  if(v.length<=2) return +v>0 ? +v*60 : null;
+  if(v.length<=4){ var ss=+v.slice(-2); if(ss>59) return null; return +v.slice(0,-2)*60+ss; }
+  return null;
+}
+
+/* ---------- wear colour ---------- */
+function hexLerp(a,b,t){
+  var pa=[1,3,5].map(function(i){return parseInt(a.substr(i,2),16);});
+  var pb=[1,3,5].map(function(i){return parseInt(b.substr(i,2),16);});
+  return '#'+pa.map(function(v,i){ return Math.round(v+(pb[i]-v)*t).toString(16).padStart(2,'0'); }).join('');
+}
+var VOLT=['#dcff55','#9fce14'], AMBER=['#ffcf4d','#e0951c'], RED=['#ff7a5c','#d5361f'];
+function liqColors(p){
+  if(p<=0.55) return VOLT;
+  if(p<0.8){ var t=(p-0.55)/0.25; return [hexLerp(VOLT[0],AMBER[0],t), hexLerp(VOLT[1],AMBER[1],t)]; }
+  if(p<1){ var u=(p-0.8)/0.2; return [hexLerp(AMBER[0],RED[0],u), hexLerp(AMBER[1],RED[1],u)]; }
+  return RED;
+}
+function statusLabel(p){
+  if(p<0.15) return 'Box fresh';
+  if(p<0.45) return 'Nicely broken in';
+  if(p<0.7)  return 'Solid miles on these';
+  if(p<0.9)  return 'Watch the midsole';
+  if(p<1)    return 'Nearly cooked';
+  return 'Time for a new pair';
+}
+var fmtDate = new Intl.DateTimeFormat('en-GB',{weekday:'short', day:'numeric', month:'short'});
+
+/* ---------- render ---------- */
+var fillTarget = 0;
+function render(splash){
+  var t = total(), p = t/data.target;
+  $('pct').textContent = Math.round(p*100);
+  $('done').textContent = t.toFixed(1);
+  $('tgt').textContent = data.target;
+  $('left').textContent = Math.max(0, data.target-t).toFixed(1);
+  var wkStart = new Date(); wkStart.setHours(0,0,0,0);
+  wkStart.setDate(wkStart.getDate() - ((wkStart.getDay()+6)%7));
+  var wk = data.entries.filter(function(e){ return e.d >= wkStart.getTime(); }).length;
+  var mx = data.entries.reduce(function(a,e){ return Math.max(a,e.m); }, 0);
+  $('stats2').hidden = !data.entries.length;
+  $('wkRuns').textContent = wk;
+  $('wkWord').textContent = wk===1 ? 'run' : 'runs';
+  $('prMi').textContent = mx.toFixed(1);
+  $('status').textContent = statusLabel(p);
+  var c = liqColors(Math.min(1.2,p));
+  $('dot').style.background = c[1];
+  document.getElementById('sTop').setAttribute('stop-color', c[0]);
+  document.getElementById('sBot').setAttribute('stop-color', c[1]);
+  fillTarget = Math.max(0, Math.min(1, p));
+  if(splash) S.amp = Math.min(15, S.amp+6);
+
+  var log = $('log'); log.innerHTML = '';
+  var list = data.entries.slice().sort(function(a,b){ return b.d-a.d; });
+  $('empty').hidden = list.length>0;
+  list.forEach(function(e){
+    var li = document.createElement('li');
+    var pace = e.t ? '<span class="p">'+fmtTime(Math.round(e.t/e.m))+' /mi</span>' : '';
+    li.innerHTML = '<button class="d" data-date="'+e.id+'" aria-label="Edit date">'+fmtDate.format(new Date(e.d))+'</button>'+
+                   '<button class="t" data-time="'+e.id+'" aria-label="Edit time to complete"><span class="tv">'+(e.t?fmtTime(e.t):'\u2013:\u2013')+'</span>'+pace+'</button>'+
+                   '<span class="m">'+e.m.toFixed(1)+' mi</span>'+
+                   '<button class="del" data-del="'+e.id+'" aria-label="Delete entry">&times;</button>';
+    log.appendChild(li);
+  });
+}
+
+/* ---------- moments ---------- */
+function toast(msg){
+  var t = $('toast'); t.textContent = msg; t.hidden = false;
+  requestAnimationFrame(function(){ t.classList.add('show'); });
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.remove('show'); }, 4200);
+}
+var MARKS = [
+  [5,'5 miles banked \u2014 the habit is forming'],
+  [10,'10 miles \u2014 double figures'],
+  [25,'25 miles down'],
+  [35,'35 miles \u2014 Wrexham to Anfield'],
+  [50,'50 miles \u2014 proper runner behaviour'],
+  [75,'75 miles in these'],
+  [100,'100 MILES \u2014 century club'],
+  [150,'150 miles \u2014 earning their keep'],
+  [200,'200 miles down'],
+  [250,'250 miles'],
+  [300,'300 miles \u2014 start eyeing the next pair'],
+  [350,'350 miles \u2014 nearly cooked'],
+  [400,'400 miles \u2014 send them off in style']
+];
+
+/* ---------- actions ---------- */
+function addMiles(m, tSec){
+  m = Math.round(m*10)/10;
+  if(!(m>0) || m>500) return;
+  var pre = total(),
+      wasEmpty = data.entries.length === 0,
+      prevMax = data.entries.reduce(function(a,e){ return Math.max(a,e.m); }, 0),
+      had5k = data.entries.some(function(e){ return e.m >= 3.1; });
+  var entry = { id: Date.now()+Math.random().toString(16).slice(2), m:m, d:Date.now() };
+  if(tSec) entry.t = tSec;
+  data.entries.push(entry);
+  save(); render(true);
+  var post = pre + m, msg = null, i;
+  for(i = MARKS.length-1; i >= 0; i--)
+    if(pre < MARKS[i][0] && post >= MARKS[i][0]){ msg = MARKS[i][1]; break; }
+  if(wasEmpty) msg = 'Run one logged \u2014 welcome to the club';
+  else if(m >= 3.1 && !had5k) msg = 'A full 5K in one go \u2014 that\u2019s the whole point of C25K';
+  else if(!msg && m > prevMax) msg = 'New longest run \u2014 '+m.toFixed(1)+' mi';
+  if(msg){ toast(msg); S.amp = 15; }
+}
+$('addBtn').addEventListener('click', function(){
+  var v = parseFloat($('miles').value);
+  var tv = $('mins').value.trim(), ts = null;
+  if(tv){
+    ts = parseTime(tv);
+    if(!ts){ $('mins').classList.add('bad'); $('mins').focus(); return; }
+  }
+  if(v>0){
+    addMiles(v, ts);
+    $('miles').value=''; $('mins').value=''; $('mins').classList.remove('bad');
+    $('miles').blur(); $('mins').blur();
+  }
+});
+$('miles').addEventListener('keydown', function(e){ if(e.key==='Enter') $('addBtn').click(); });
+$('mins').addEventListener('keydown', function(e){ if(e.key==='Enter') $('addBtn').click(); });
+$('mins').addEventListener('input', function(){ $('mins').classList.remove('bad'); });
+document.querySelector('.chips').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-m]');
+  if(b) addMiles(parseFloat(b.dataset.m));
+});
+function byId(id){ for(var i=0;i<data.entries.length;i++) if(data.entries[i].id===id) return data.entries[i]; }
+$('log').addEventListener('click', function(e){
+  var b = e.target.closest('button[data-del]');
+  if(b){
+    data.entries = data.entries.filter(function(x){ return x.id!==b.dataset.del; });
+    save(); render(true); return;
+  }
+  var db = e.target.closest('button[data-date]');
+  if(db){
+    var en = byId(db.dataset.date); if(!en) return;
+    var cur = new Date(en.d);
+    var iso = cur.getFullYear()+'-'+p2(cur.getMonth()+1)+'-'+p2(cur.getDate());
+    var today = new Date();
+    ask({ title:'Run date', input:true, type:'date', value:iso,
+          max: today.getFullYear()+'-'+p2(today.getMonth()+1)+'-'+p2(today.getDate()),
+          onOk:function(v){
+            var mch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); if(!mch) return;
+            var nd = new Date(+mch[1], +mch[2]-1, +mch[3], cur.getHours(), cur.getMinutes());
+            if(isNaN(nd.getTime())) return;
+            var eod = new Date(); eod.setHours(23,59,59,999);
+            if(nd.getTime() > eod.getTime()) return;
+            en.d = nd.getTime(); save(); render(false);
+          } });
+    return;
+  }
+  var tb = e.target.closest('button[data-time]');
+  if(tb){
+    var en2 = byId(tb.dataset.time); if(!en2) return;
+    ask({ title:'Time to complete', text:'e.g. 32:15 or just minutes \u2014 leave empty to clear.',
+          input:true, type:'text', inputmode:'numeric', placeholder:'mm:ss',
+          value: en2.t ? fmtTime(en2.t) : '',
+          onOk:function(v){
+            v = (''+v).trim();
+            if(!v){ delete en2.t; save(); render(false); return; }
+            var sec = parseTime(v);
+            if(sec){ en2.t = sec; save(); render(false); }
+          } });
+  }
+});
+
+/* ---------- dialog ---------- */
+var dlg=$('dlg'), dlgOk=$('dlgOk'), onOk=null;
+function ask(opts){
+  $('dlgTitle').textContent = opts.title;
+  $('dlgText').textContent = opts.text||'';
+  var inp=$('dlgInput');
+  inp.hidden = !opts.input;
+  if(opts.input){
+    inp.type = opts.type || 'number';
+    if(opts.placeholder) inp.setAttribute('placeholder', opts.placeholder); else inp.removeAttribute('placeholder');
+    if(opts.max) inp.setAttribute('max', opts.max); else inp.removeAttribute('max');
+    if(opts.inputmode) inp.setAttribute('inputmode', opts.inputmode); else inp.removeAttribute('inputmode');
+    inp.value = opts.value;
+  }
+  dlgOk.textContent = opts.ok||'Save';
+  dlgOk.classList.toggle('danger', !!opts.danger);
+  onOk = opts.onOk;
+  if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
+  if(opts.input) inp.select();
+}
+function closeDlg(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
+$('dlgCancel').addEventListener('click', closeDlg);
+dlgOk.addEventListener('click', function(){ if(onOk) onOk($('dlgInput').value); closeDlg(); });
+$('dlgInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); dlgOk.click(); } });
+
+$('editTarget').addEventListener('click', function(){
+  ask({ title:'Replacement target', text:'Miles before this pair should be retired. Guidance is 300\u2013500; the Pegasus usually lands at the top end.',
+        input:true, value:data.target, onOk:function(v){ v=parseFloat(v); if(v>=50 && v<=2000){ data.target=Math.round(v); save(); render(false); } } });
+});
+$('reset').addEventListener('click', function(){
+  ask({ title:'New pair?', text:'Clears the run log and starts this pair from zero. The '+total().toFixed(1)+' mi on the current pair will be gone.',
+        ok:'Start fresh', danger:true, onOk:function(){ data.entries=[]; save(); render(true); } });
+});
+
+/* ---------- physics ---------- */
+var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var S = { fill:{x:0,v:0}, liq:{x:0,v:0}, shoe:{x:0,v:0}, amp:0, phase:0, tiltSm:0, lastTilt:0, bob:0 };
+var tiltDeg=0, simTilt=0, sensorOn=false, dragging=false, dragX0=0, dragBase=0;
+var bubbles=[];
+
+function spring(s, target, w, z, dt){
+  s.v += ( w*w*(target - s.x) - 2*z*w*s.v ) * dt;
+  s.x += s.v * dt;
+}
+
+window.addEventListener('deviceorientation', function(e){
+  if(e.gamma==null && e.beta==null) return;
+  var ang = (screen.orientation && screen.orientation.angle);
+  if(ang==null) ang = window.orientation||0;
+  var t;
+  if(ang===90) t = e.beta; else if(ang===-90||ang===270) t = -e.beta;
+  else if(ang===180) t = -e.gamma; else t = e.gamma;
+  tiltDeg = Math.max(-60, Math.min(60, t||0));
+  if(!sensorOn){ sensorOn=true; $('hint').textContent='tilt your phone'; }
+});
+window.addEventListener('devicemotion', function(e){
+  var a = e.acceleration;
+  if(a && a.x!=null) S.amp = Math.min(15, S.amp + Math.min(3, Math.abs(a.x)*0.06));
+});
+
+/* iOS 13+ motion permission */
+var needPerm = typeof DeviceOrientationEvent!=='undefined' &&
+               typeof DeviceOrientationEvent.requestPermission==='function';
+if(needPerm){
+  $('motionBtn').hidden = false;
+  $('motionBtn').addEventListener('click', function(){
+    var reqs = [DeviceOrientationEvent.requestPermission()];
+    if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function')
+      reqs.push(DeviceMotionEvent.requestPermission());
+    Promise.all(reqs).then(function(){ $('motionBtn').hidden = true; }).catch(function(){});
+  });
+}
+
+/* pointer fallback: drag to tilt, tap to splash */
+var stage = $('stage');
+stage.addEventListener('pointerdown', function(e){
+  dragging=true; dragX0=e.clientX; dragBase=simTilt;
+  S.amp=Math.min(15,S.amp+4);
+  if(stage.setPointerCapture) try{ stage.setPointerCapture(e.pointerId); }catch(_){}
+});
+stage.addEventListener('pointermove', function(e){
+  if(!dragging) return;
+  simTilt = Math.max(-45, Math.min(45, dragBase + (e.clientX-dragX0)/3.2));
+});
+function endDrag(){ dragging=false; }
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+if(!('ontouchstart' in window)) $('hint').textContent='drag the shoe';
+
+/* geometry */
+var TOPY=76, BOTY=546, CX=190, PIVY=250, L=20, R=360, FLOOR=640, N=22;
+var shoeG=$('shoeG'), liquidPath=$('liquidPath'), meniscus=$('meniscus'),
+    liquidG=$('liquidG'), bubblesG=$('bubbles'), shadow=$('shadow');
+
+var last = performance.now(), bobT = 0;
+function frame(now){
+  var dt = Math.min(0.05, (now-last)/1000) || 0.016; last = now;
+
+  var target = dragging ? simTilt : (sensorOn ? tiltDeg : simTilt);
+  if(!dragging && !sensorOn) simTilt += (0-simTilt)*Math.min(1,dt*4);
+  if(reduceMotion) target = 0;
+  S.tiltSm += (target - S.tiltSm) * Math.min(1, dt*12);
+  var tv = (S.tiltSm - S.lastTilt)/dt; S.lastTilt = S.tiltSm;
+
+  /* shoe: gimbal that speedily self-rights */
+  S.shoe.v += -tv * dt * 1.15;
+  spring(S.shoe, 0, 9, 0.45, dt);
+  S.shoe.x = Math.max(-16, Math.min(16, S.shoe.x));
+
+  /* liquid: level in world = counter device tilt and shoe rotation */
+  var liqTarget = Math.max(-0.5, Math.min(0.5, (-(S.tiltSm) - S.shoe.x) * 0.0155));
+  spring(S.liq, liqTarget, 6.5, 0.3, dt);
+
+  /* wave energy */
+  if(!reduceMotion){
+    S.amp = Math.min(15, S.amp + Math.abs(tv)*dt*0.10 + Math.abs(S.liq.v)*dt*9);
+    S.amp *= Math.exp(-dt*2.1);
+    S.phase += dt*(5 + S.amp*0.6);
+  } else { S.amp = 0; }
+
+  /* displayed fill eases to target */
+  if(reduceMotion){ S.fill.x = fillTarget; S.fill.v = 0; }
+  else spring(S.fill, fillTarget, 3.6, 0.95, dt);
+  S.fill.x = Math.max(0, Math.min(1.02, S.fill.x));
+
+  /* float bob */
+  bobT += dt; S.bob = reduceMotion ? 0 : 10*Math.sin(bobT*1.15);
+
+  shoeG.setAttribute('transform',
+    'translate(0 '+S.bob.toFixed(2)+') rotate('+S.shoe.x.toFixed(2)+' '+CX+' '+PIVY+')');
+  shadow.setAttribute('rx', (88 - S.bob*1.3).toFixed(1));
+  shadow.setAttribute('opacity', (0.18 - S.bob*0.006).toFixed(3));
+
+  /* liquid surface */
+  var lvl = BOTY - (BOTY-TOPY)*S.fill.x;
+  if(S.fill.x <= 0.004){ liquidG.setAttribute('display','none'); }
+  else{
+    liquidG.removeAttribute('display');
+    var tan = Math.tan(S.liq.x), d='M '+L+' '+FLOOR, m='';
+    for(var i=0;i<=N;i++){
+      var x = L + (R-L)*i/N;
+      var y = lvl + tan*(x-CX)
+            + S.amp*Math.sin(x/45 + S.phase)
+            + S.amp*0.35*Math.sin(x/21 - S.phase*1.7);
+      d += ' L '+x.toFixed(1)+' '+y.toFixed(1);
+      m += (i? ' L ':'M ')+x.toFixed(1)+' '+y.toFixed(1);
+    }
+    d += ' L '+R+' '+FLOOR+' Z';
+    liquidPath.setAttribute('d', d);
+    meniscus.setAttribute('d', m);
+    meniscus.setAttribute('opacity', Math.min(0.6, 0.22 + S.amp*0.04).toFixed(2));
+
+    /* bubbles */
+    if(!reduceMotion && S.fill.x>0.06 && bubbles.length<9 && Math.random()<dt*2.4)
+      bubbles.push({ x:105+Math.random()*175, y:BOTY-8, r:1.4+Math.random()*2.4,
+                     v:16+Math.random()*26, ph:Math.random()*9 });
+    var bs='';
+    bubbles = bubbles.filter(function(b){
+      b.y -= b.v*dt; b.x += Math.sin(b.y/13+b.ph)*9*dt;
+      if(b.y < lvl + tan*(b.x-CX) + 7) return false;
+      bs += '<circle cx="'+b.x.toFixed(1)+'" cy="'+b.y.toFixed(1)+'" r="'+b.r+'" fill="#fff" opacity="0.3"/>';
+      return true;
+    });
+    bubblesG.innerHTML = bs;
+  }
+  requestAnimationFrame(frame);
+}
+
+render(false);
+if(data.entries.length){
+  var lastD = data.entries.reduce(function(a,e){ return Math.max(a,e.d); }, 0);
+  var gap = Math.floor((Date.now()-lastD)/86400000);
+  if(gap >= 5) setTimeout(function(){ toast('Been '+gap+' days \u2014 the trainers are ready when you are'); }, 900);
+}
+requestAnimationFrame(frame);
+
+/* ---------- PWA ---------- */
+if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
+  addEventListener('load', function(){ navigator.serviceWorker.register('./sw.js').catch(function(){}); });
+}
+})();
+</script>
+</body>
+</html>
