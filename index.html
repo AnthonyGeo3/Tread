@@ -215,7 +215,7 @@
   <footer>
     <button class="linky" id="editTarget">Change target</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B8</div>
+    <div class="build">TREAD B9</div>
   </footer>
 </div>
 
@@ -303,6 +303,27 @@ function metricPoints(kind){
   pts.sort(function(a,b){ return a.d-b.d; });
   return pts.slice(-30);
 }
+/* round the y-axis to sensible bounds + ticks instead of raw data min/max.
+   dist snaps to decimal miles; pace/time (seconds) snap to time-friendly steps. */
+function niceAxis(min, max, kind){
+  var steps = kind==='dist'
+    ? [0.1,0.2,0.5,1,2,5,10,20,50]
+    : [15,30,60,120,300,600,900,1800,3600];
+  var flat = (max-min) <= 0;
+  var span = flat ? (kind==='dist' ? 0.5 : 60) : (max-min);
+  var step = steps[steps.length-1];
+  for(var i=0;i<steps.length;i++){ if(span/steps[i] <= 3.0001){ step=steps[i]; break; } }
+  var lo, hi;
+  if(flat){ var c=Math.round(min/step)*step; lo=c-step; hi=c+step; }
+  else {
+    lo = Math.floor(min/step + 1e-9)*step;
+    hi = Math.ceil(max/step - 1e-9)*step;
+    if(hi-lo < step*0.5) hi = lo + step;
+  }
+  var n = Math.round((hi-lo)/step), ticks=[];
+  for(var k=0;k<=n;k++) ticks.push(lo + k*step);
+  return { lo:lo, hi:hi, step:step, ticks:ticks };
+}
 function renderChart(){
   var wrap = $('chartWrap');
   if(data.entries.length < 2){ wrap.hidden = true; return; }
@@ -320,15 +341,14 @@ function renderChart(){
     if(p.v<minV) minV=p.v; if(p.v>maxV) maxV=p.v;
     if(p.d<minD) minD=p.d; if(p.d>maxD) maxD=p.d;
   });
-  var lo=minV, hi=maxV;
-  if(lo===hi){ var fp = kind==='dist' ? 0.5 : 45; lo-=fp; hi+=fp; }
-  else { var pad=(hi-lo)*0.14; lo-=pad; hi+=pad; }
+  var ax = niceAxis(minV, maxV, kind), lo=ax.lo, hi=ax.hi;
+  var dec = (kind==='dist') ? (ax.step < 1 ? 1 : 0) : 0;
   if(minD===maxD){ minD-=43200000; maxD+=43200000; }
   var inv = (kind==='pace');
   function X(dd){ return ml + (dd-minD)/(maxD-minD)*(W-ml-mr); }
   function Y(v){ var f=(v-lo)/(hi-lo); if(!inv) f=1-f; return mt + f*(H-mt-mb); }
-  function lbl(v){ return kind==='dist' ? ''+(Math.round(v*10)/10) : fmtTime(Math.max(1, Math.round(v))); }
-  var ticks = (minV===maxV) ? [minV] : [minV, (minV+maxV)/2, maxV];
+  function lbl(v){ return kind==='dist' ? v.toFixed(dec) : fmtTime(Math.max(1, Math.round(v))); }
+  var ticks = ax.ticks;
   ticks.forEach(function(t){
     var y = Y(t).toFixed(1);
     out += '<line class="cGrid" x1="'+ml+'" y1="'+y+'" x2="'+(W-mr)+'" y2="'+y+'"/>';

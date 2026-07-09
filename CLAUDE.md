@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B8 · sw.js CACHE `tread-v8` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B9 · sw.js CACHE `tread-v9` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -105,6 +105,12 @@ time-scaled x-axis. Tapping anywhere on the chart cycles distance → pace → t
 (choice persisted as `metric`). **Pace axis is inverted (faster at the top)** so an
 upward line means progress in all three modes — keep it that way. Hidden until 2 runs
 exist; pace/time modes show a gentle empty note if no durations are logged.
+
+B9: "nice numbers" y-axis on the trend chart (`niceAxis`). Replaced the old
+min/midpoint/max ticks (which read raw run values like 1.6/1.9/2.2) with rounded bounds
+and a rounded step. Metric-aware: distance snaps to decimal-mile steps (0.1/0.2/0.5/1…),
+pace and time snap to time-friendly steps (15s/30s/1m/2m/5m…) so ticks land on whole
+minutes. Aims for ~3 intervals; dist labels use a decimal count derived from the step.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
