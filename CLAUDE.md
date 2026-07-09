@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B14 · sw.js CACHE `tread-v14` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B15 · sw.js CACHE `tread-v15` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -33,8 +33,9 @@ Judge every feature against that, not against "fitness app" convention.
 `localStorage['tread']` = `{ target: number, metric?: 'dist'|'pace'|'time', entries: [{ id: string, m: number /*miles*/, d: number /*epoch ms*/, t?: number /*duration in seconds, optional*/ }] }`
 Plus (B11–B14): `ejKey/ejService/ejTemplate` (EmailJS recap creds), `recapLast` (ms of last
 recap send), `c25k` (`{done:0–27}` or `null` = programme off), `events` (`[{id, name, d /*epoch ms*/}]`),
-`next` (epoch ms midnight of the single planned next run, or 0). All have defensive defaults at the
-top of the script; `c25k`, `events`, `next` are also carried in the backup payload (v14).
+`next` (epoch ms midnight of the single planned next run, or 0). Events also carry optional
+`m` (target distance in miles, B15). All have defensive defaults at the top of the script;
+`c25k`, `events` (incl. `m`), `next` are carried in the backup payload (v15).
 The run log renders sorted by `d` descending — dates are user-editable, so never rely on
 array insertion order for display.
 Everything else (totals, %, weekly count, longest, milestones) is derived — keep it
@@ -188,9 +189,13 @@ only when relevant (a global `[hidden]{display:none!important}` reset was added 
   (blank clears). Logging a run **clears the cue only if it was due** (`midnight(next) <=
   todayMid`) — an early/bonus run leaves a future plan standing.
 - **Events / races** (`#eventsCard` + `#eventAdd2` ghost): user-entered `data.events`
-  `[{id,name,d}]`, shown as upcoming-only (past auto-filtered) countdowns via `countdown()`.
-  Add/edit through `openEvent` (name + date picker; blank name deletes when editing). Names
-  are `esc()`-escaped — the only free-text field rendered via innerHTML, so **keep it escaped**.
+  `[{id,name,d,m?}]`, shown as upcoming-only (past auto-filtered) countdowns via `countdown()`.
+  Add/edit through `openEvent` (name + date picker + optional distance; blank name deletes when
+  editing). Names are `esc()`-escaped — the only free-text field rendered via innerHTML, so
+  **keep it escaped**. B15: events take an optional distance `m`; when set, the row shows a
+  volt readiness bar of **longest run / event distance** with a factual, non-shaming note
+  ("Longest run so far: 2.5 of 3.1 mi", or "You can already run this distance 👊" once
+  reached) — the "am I on track" signal. Distance-less events just show name + date + countdown.
 The shared `ask()` dialog gained per-field `type2/inputmode2/min2/max2` (and `*3`) so the
 secondary inputs can be date/number (events date, C25K week+run) — additive, existing callers
 unaffected.

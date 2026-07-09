@@ -131,11 +131,14 @@
         border-radius:999px; padding:8px 12px; border:1px solid var(--line); flex:none}
   .bump:active{background:var(--line)}
   #eventsList{list-style:none}
-  #eventsList li{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0}
+  #eventsList li{display:flex; flex-direction:column; gap:6px; padding:8px 0}
   #eventsList li + li{border-top:1px solid var(--line)}
+  .evTop{display:flex; align-items:center; justify-content:space-between; gap:10px}
   .evName{font-weight:800; color:var(--ink); text-align:left; flex:1; min-width:0;
           text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
   .evWhen{font-size:12.5px; color:var(--muted); text-align:right; white-space:nowrap}
+  .evReady .pbar{margin-top:0; height:6px}
+  .evReadyNote{font-size:11.5px; color:var(--muted); margin-top:4px}
 
   /* log */
   .hist{margin-top:26px}
@@ -309,7 +312,7 @@
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B14</div>
+    <div class="build">TREAD B15</div>
   </footer>
 </div>
 
@@ -582,10 +585,20 @@ function renderEvents(){
   var card=$('eventsCard'), add2=$('eventAdd2'), hasRuns=data.entries.length>0, ev=upcomingEvents();
   if(ev.length){
     add2.hidden=true; card.hidden=false;
+    var longest = data.entries.reduce(function(a,e){ return Math.max(a,e.m); }, 0);
     var out='';
     ev.forEach(function(e){
-      out+='<li><button class="evName" data-ev="'+e.id+'" aria-label="Edit event">'+esc(e.name)+'</button>'+
-           '<span class="evWhen">'+fmtDay.format(new Date(e.d))+' · '+countdown(e.d)+'</span></li>';
+      var meta = (e.m>0 ? e.m.toFixed(1)+' mi · ' : '') + fmtDay.format(new Date(e.d)) + ' · ' + countdown(e.d);
+      var ready='';
+      if(e.m>0){
+        var pct = Math.min(1, longest/e.m)*100;
+        var note = longest>=e.m ? 'You can already run this distance 👊'
+                                : 'Longest run so far: '+longest.toFixed(1)+' of '+e.m.toFixed(1)+' mi';
+        ready = '<div class="evReady"><div class="pbar"><div class="pbarFill" style="width:'+pct.toFixed(0)+'%"></div></div>'+
+                '<div class="evReadyNote">'+note+'</div></div>';
+      }
+      out+='<li><div class="evTop"><button class="evName" data-ev="'+e.id+'" aria-label="Edit event">'+esc(e.name)+'</button>'+
+           '<span class="evWhen">'+meta+'</span></div>'+ready+'</li>';
     });
     $('eventsList').innerHTML=out;
   } else {
@@ -623,18 +636,22 @@ function openNext(){
 function openEvent(ev){
   var isEdit=!!ev;
   ask({ title:isEdit?'Edit event':'Add a race or event',
-        text:'A race or run you’ve signed up for — it shows as a countdown. Leave the name blank to '+(isEdit?'delete it':'cancel')+'.',
+        text:'A race or run you’ve signed up for — it shows as a countdown. Add its distance too and you’ll see your longest run building toward it. Leave the name blank to '+(isEdit?'delete it':'cancel')+'.',
         input:true, type:'text', placeholder:'Name (e.g. Autumn 5K)', value: ev?ev.name:'',
         input2:true, type2:'date', value2: isoOf(ev?ev.d:(todayMid()+14*DAY)), min2:isoOf(todayMid()),
+        input3:true, type3:'number', inputmode3:'decimal', placeholder3:'Distance in miles (optional)', value3: (ev&&ev.m>0)?ev.m:'',
         ok:isEdit?'Save':'Add',
-        onOk:function(name, datev){
+        onOk:function(name, datev, distv){
           name=(''+name).trim();
           if(!name){ if(isEdit){ data.events=data.events.filter(function(x){ return x.id!==ev.id; }); save(); render(false); } return; }
           var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec((''+datev).trim()); if(!m) return;
           var nd=new Date(+m[1],+m[2]-1,+m[3]); nd.setHours(0,0,0,0);
           if(isNaN(nd.getTime())) return;
-          if(isEdit){ ev.name=name.slice(0,80); ev.d=nd.getTime(); }
-          else data.events.push({ id:Date.now()+Math.random().toString(16).slice(2), name:name.slice(0,80), d:nd.getTime() });
+          var dist=parseFloat(distv); dist=(dist>0 && dist<=100) ? Math.round(dist*10)/10 : 0;
+          var obj = isEdit ? ev : { id:Date.now()+Math.random().toString(16).slice(2) };
+          obj.name=name.slice(0,80); obj.d=nd.getTime();
+          if(dist) obj.m=dist; else delete obj.m;
+          if(!isEdit) data.events.push(obj);
           save(); render(false);
         } });
 }
@@ -1112,7 +1129,9 @@ function parseBackup(txt){
   if('events' in o) events = Array.isArray(o.events) ? o.events.filter(function(x){
       return x && typeof x.d==='number' && typeof x.name==='string';
     }).map(function(x){
-      return { id: (x.id!=null ? String(x.id) : String(x.d)+Math.random().toString(36).slice(2,6)), name: String(x.name).slice(0,80), d: x.d };
+      var ev = { id: (x.id!=null ? String(x.id) : String(x.d)+Math.random().toString(36).slice(2,6)), name: String(x.name).slice(0,80), d: x.d };
+      if(typeof x.m==='number' && x.m>0) ev.m = x.m;
+      return ev;
     }) : [];
   var next;
   if('next' in o) next = (typeof o.next==='number' && o.next>0) ? o.next : 0;
