@@ -221,8 +221,9 @@
 
   <footer>
     <button class="linky" id="editTarget">Change target</button>&middot;
+    <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B10</div>
+    <div class="build">TREAD B11</div>
   </footer>
 </div>
 
@@ -230,6 +231,8 @@
   <h2 id="dlgTitle"></h2>
   <p id="dlgText"></p>
   <input id="dlgInput" type="number" inputmode="decimal" min="1" hidden>
+  <input id="dlgInput2" type="text" hidden>
+  <input id="dlgInput3" type="text" hidden>
   <div class="dlgrow">
     <button id="dlgCancel">Cancel</button>
     <button id="dlgOk" class="ok">Save</button>
@@ -248,6 +251,10 @@ var data = load() || { target:400, entries:[] };
 if(!(data.target>0)) data.target = 400;
 if(!Array.isArray(data.entries)) data.entries = [];
 if(data.metric!=='pace' && data.metric!=='time') data.metric = 'dist';
+if(typeof data.ejKey!=='string') data.ejKey = '';
+if(typeof data.ejService!=='string') data.ejService = '';
+if(typeof data.ejTemplate!=='string') data.ejTemplate = '';
+if(!(data.recapLast>0)) data.recapLast = 0;
 
 var total = function(){ return data.entries.reduce(function(a,e){ return a+e.m; },0); };
 
@@ -555,6 +562,14 @@ function ask(opts){
     if(opts.inputmode) inp.setAttribute('inputmode', opts.inputmode); else inp.removeAttribute('inputmode');
     inp.value = opts.value;
   }
+  [['dlgInput2','input2','placeholder2','value2'], ['dlgInput3','input3','placeholder3','value3']].forEach(function(f){
+    var el=$(f[0]);
+    el.hidden = !opts[f[1]];
+    if(opts[f[1]]){
+      if(opts[f[2]]) el.setAttribute('placeholder', opts[f[2]]); else el.removeAttribute('placeholder');
+      el.value = opts[f[3]]||'';
+    }
+  });
   dlgOk.textContent = opts.ok||'Save';
   dlgOk.classList.toggle('danger', !!opts.danger);
   onOk = opts.onOk;
@@ -563,7 +578,7 @@ function ask(opts){
 }
 function closeDlg(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
 $('dlgCancel').addEventListener('click', closeDlg);
-dlgOk.addEventListener('click', function(){ if(onOk) onOk($('dlgInput').value); closeDlg(); });
+dlgOk.addEventListener('click', function(){ if(onOk) onOk($('dlgInput').value, $('dlgInput2').value, $('dlgInput3').value); closeDlg(); });
 $('dlgInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); dlgOk.click(); } });
 
 $('editTarget').addEventListener('click', function(){
@@ -573,6 +588,18 @@ $('editTarget').addEventListener('click', function(){
 $('reset').addEventListener('click', function(){
   ask({ title:'New pair?', text:'Clears the run log and starts this pair from zero. The '+total().toFixed(1)+' mi on the current pair will be gone.',
         ok:'Start fresh', danger:true, onOk:function(){ data.entries=[]; save(); render(true); } });
+});
+$('editRecap').addEventListener('click', function(){
+  ask({ title:'Weekly recap email', text:'A once-a-week note with the past week’s runs, sent through your own free EmailJS account (emailjs.com) so no server is needed. Create a service and a template with a single {{message}} variable, then paste the three IDs below.',
+        input:true, type:'text', placeholder:'Public key', value:data.ejKey,
+        input2:true, placeholder2:'Service ID', value2:data.ejService,
+        input3:true, placeholder3:'Template ID', value3:data.ejTemplate,
+        ok:'Save & test', onOk:function(k, sid, tid){
+          data.ejKey=(k||'').trim(); data.ejService=(sid||'').trim(); data.ejTemplate=(tid||'').trim(); save();
+          if(recapConfigured()){
+            sendRecap(function(ok){ toast(ok ? 'Test recap sent — check your inbox' : 'Send failed — check the IDs and try again'); });
+          }
+        } });
 });
 
 /* ---------- physics ---------- */
@@ -734,12 +761,50 @@ function frame(now){
   requestAnimationFrame(frame);
 }
 
+/* ---------- weekly recap ---------- */
+function weekStats(sinceMs){
+  var runs = data.entries.filter(function(e){ return e.d >= sinceMs; });
+  var miles = runs.reduce(function(a,e){ return a+e.m; }, 0);
+  var longest = runs.reduce(function(a,e){ return Math.max(a,e.m); }, 0);
+  return { n:runs.length, miles:miles, longest:longest };
+}
+function recapCopy(s){
+  if(s.n===0) return 'Quiet week on the shoe \u2014 no pressure, it\u2019ll be there when you\u2019re ready.';
+  if(s.n===1) return 'One run this week \u2014 '+s.miles.toFixed(1)+' mi in the bank. Every mile counts.';
+  var lines = [
+    'Solid week: '+s.n+' runs, '+s.miles.toFixed(1)+' mi total. Longest was '+s.longest.toFixed(1)+' mi.',
+    s.n+' runs this week for '+s.miles.toFixed(1)+' mi \u2014 that\u2019s real momentum.',
+    'You logged '+s.n+' runs and '+s.miles.toFixed(1)+' mi this week. Keep it rolling.'
+  ];
+  return lines[Math.floor(Math.random()*lines.length)];
+}
+function recapConfigured(){ return !!(data.ejKey && data.ejService && data.ejTemplate); }
+function sendRecap(onDone){
+  var now = Date.now(), since = data.recapLast || (now - 7*86400000);
+  var s = weekStats(since);
+  fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ service_id:data.ejService, template_id:data.ejTemplate, user_id:data.ejKey,
+                            template_params:{ message:recapCopy(s), run_count:s.n, miles:s.miles.toFixed(1) } })
+  }).then(function(r){
+    if(!r.ok) throw new Error('send failed');
+    data.recapLast = now; save();
+    if(onDone) onDone(true);
+  }).catch(function(){ if(onDone) onDone(false); });
+}
+function maybeSendRecap(){
+  if(!recapConfigured()) return;
+  if(data.recapLast && Date.now()-data.recapLast < 7*86400000) return;
+  sendRecap(function(ok){ if(ok) toast('Weekly recap emailed'); });
+}
+
 render(false);
 if(data.entries.length){
   var lastD = data.entries.reduce(function(a,e){ return Math.max(a,e.d); }, 0);
   var gap = Math.floor((Date.now()-lastD)/86400000);
   if(gap >= 5) setTimeout(function(){ toast('Been '+gap+' days \u2014 the trainers are ready when you are'); }, 900);
 }
+try{ setTimeout(maybeSendRecap, 1500); }catch(e){}
 requestAnimationFrame(frame);
 
 /* ---------- PWA ---------- */

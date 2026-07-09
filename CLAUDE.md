@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B10 · sw.js CACHE `tread-v10` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B11 · sw.js CACHE `tread-v11` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -118,6 +118,23 @@ the chart's `metricBtn`) in a new `.histHead` cycles the order: Newest (date des
 default) → Longest (distance) → Longest time → Fastest (pace). Untimed runs sink to the
 bottom for the time/pace orders. Sort is **session-only** — not persisted, resets to date
 order on load — so opening the app is always predictable. Button hidden until 2+ runs.
+
+B11: weekly recap email (`Weekly recap` footer link → settings dialog). No backend exists
+for Tread, so this is deliberately **client-only**: on app open, if 7+ days have passed
+since `data.recapLast`, the app composes a motivational summary of the trailing week
+(`weekStats`/`recapCopy` — run count, total miles, longest run, non-comparative, warm even
+at zero runs per the anti-goals) and POSTs it straight from the browser to EmailJS's REST
+endpoint (`api.emailjs.com`, CORS-enabled, public-key auth — no server secret, so it fits
+the static-PWA constraint). This fires on next app open after the week elapses, **not** on
+a fixed calendar day — a true cron-scheduled send would require a server holding a copy of
+the run log, which was ruled out as a bigger philosophy change than this feature warranted.
+Requires the user to create their own free EmailJS service + a template containing a single
+`{{message}}` variable, and to set that template's "To Email" field to their own address
+(the recipient is configured there, not stored in Tread) — the three resulting IDs
+(public key, service ID, template ID) are pasted into the settings dialog and live in
+`data.ejKey/ejService/ejTemplate`, save-triggers an immediate test send. Silent no-op if
+unconfigured or offline; only surfaces a toast on the deliberate test send or a successful
+auto-send, never on routine auto-send failure.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
