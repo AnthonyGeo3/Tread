@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B9 · sw.js CACHE `tread-v9` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B10 · sw.js CACHE `tread-v10` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -111,6 +111,13 @@ min/midpoint/max ticks (which read raw run values like 1.6/1.9/2.2) with rounded
 and a rounded step. Metric-aware: distance snaps to decimal-mile steps (0.1/0.2/0.5/1…),
 pace and time snap to time-friendly steps (15s/30s/1m/2m/5m…) so ticks land on whole
 minutes. Aims for ~3 intervals; dist labels use a decimal count derived from the step.
+
+B10: run log is now a scroll container (`#log` max-height 250px, ~5 rows, momentum +
+contained overscroll) so it stops growing the page. A sort pill (`#sortBtn`, styled like
+the chart's `metricBtn`) in a new `.histHead` cycles the order: Newest (date desc,
+default) → Longest (distance) → Longest time → Fastest (pace). Untimed runs sink to the
+bottom for the time/pace orders. Sort is **session-only** — not persisted, resets to date
+order on load — so opening the app is always predictable. Button hidden until 2+ runs.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 

@@ -100,7 +100,11 @@
 
   /* log */
   .hist{margin-top:26px}
-  #log{list-style:none; margin-top:4px}
+  .histHead{display:flex; justify-content:space-between; align-items:center}
+  #log{list-style:none; margin-top:4px; max-height:250px; overflow-y:auto;
+       overscroll-behavior:contain; -webkit-overflow-scrolling:touch}
+  #log::-webkit-scrollbar{width:6px}
+  #log::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px}
   #log li{display:flex; align-items:center; gap:12px; padding:9px 2px; border-bottom:1px solid var(--line); font-size:14.5px}
   #log .d{color:var(--muted); flex:1; text-align:left; text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
   #log .t{color:var(--muted); font-variant-numeric:tabular-nums; min-width:58px;
@@ -207,7 +211,10 @@
   </section>
 
   <section class="hist">
-    <div class="eyebrow">Run log</div>
+    <div class="histHead">
+      <div class="eyebrow">Run log</div>
+      <button class="metricBtn" id="sortBtn" hidden aria-label="Change run log order">Newest</button>
+    </div>
     <ul id="log"></ul>
     <div class="empty" id="empty">No miles yet — log your first run and watch them fill up.</div>
   </section>
@@ -215,7 +222,7 @@
   <footer>
     <button class="linky" id="editTarget">Change target</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B9</div>
+    <div class="build">TREAD B10</div>
   </footer>
 </div>
 
@@ -368,6 +375,19 @@ function renderChart(){
   $('chart').innerHTML = out;
 }
 
+/* ---------- run-log sort (session-only; resets to date order on load) ---------- */
+var LOG_SORTS = ['date','dist','time','pace'];
+var LOG_LABEL = { date:'Newest', dist:'Longest', time:'Longest time', pace:'Fastest' };
+var logSort = 'date';
+function logComparator(kind){
+  return function(a,b){
+    if(kind==='dist') return (b.m-a.m) || (b.d-a.d);
+    if(kind==='time'){ if(!a.t&&!b.t) return b.d-a.d; if(!a.t) return 1; if(!b.t) return -1; return (b.t-a.t) || (b.d-a.d); }
+    if(kind==='pace'){ if(!a.t&&!b.t) return b.d-a.d; if(!a.t) return 1; if(!b.t) return -1; return (a.t/a.m - b.t/b.m) || (b.d-a.d); }
+    return b.d-a.d; /* date, newest first */
+  };
+}
+
 /* ---------- render ---------- */
 var fillTarget = 0;
 function render(splash){
@@ -393,8 +413,10 @@ function render(splash){
   if(splash) S.amp = Math.min(15, S.amp+6);
 
   var log = $('log'); log.innerHTML = '';
-  var list = data.entries.slice().sort(function(a,b){ return b.d-a.d; });
+  var list = data.entries.slice().sort(logComparator(logSort));
   $('empty').hidden = list.length>0;
+  $('sortBtn').hidden = list.length < 2;
+  $('sortBtn').textContent = LOG_LABEL[logSort];
   list.forEach(function(e){
     var li = document.createElement('li');
     var pace = e.t ? '<span class="p">'+fmtTime(Math.round(e.t/e.m))+' /mi</span>' : '';
@@ -474,6 +496,10 @@ function byId(id){ for(var i=0;i<data.entries.length;i++) if(data.entries[i].id=
 $('chartWrap').addEventListener('click', function(){
   data.metric = METRICS[(METRICS.indexOf(data.metric)+1)%METRICS.length];
   save(); renderChart();
+});
+$('sortBtn').addEventListener('click', function(){
+  logSort = LOG_SORTS[(LOG_SORTS.indexOf(logSort)+1)%LOG_SORTS.length];
+  render(false);
 });
 
 $('log').addEventListener('click', function(e){

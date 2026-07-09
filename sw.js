@@ -1,5 +1,5 @@
 // Tread service worker — bump CACHE to ship a new build
-const CACHE = 'tread-v9';
+const CACHE = 'tread-v10';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
