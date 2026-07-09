@@ -107,10 +107,11 @@ level follows the vessel shape — the narrow toe fills fast, the wide midfoot s
 
 B8: trend line chart between the add row and the run log (inline SVG, no libs). Plots
 runs only — never zero-filled rest days — connected in date order, last 30 runs, real
-time-scaled x-axis. Tapping anywhere on the chart cycles distance → pace → time
-(choice persisted as `metric`). **Pace axis is inverted (faster at the top)** so an
-upward line means progress in all three modes — keep it that way. Hidden until 2 runs
-exist; pace/time modes show a gentle empty note if no durations are logged.
+time-scaled x-axis. The `#metricBtn` cycles distance → pace → time (choice persisted as
+`metric`; B17 moved cycling off the chart body onto this button). **Pace axis is inverted
+(faster at the top)** so an upward line means progress in all three modes — keep it that
+way. Hidden until 2 runs exist; pace/time modes show a gentle empty note if no durations
+are logged.
 
 B9: "nice numbers" y-axis on the trend chart (`niceAxis`). Replaced the old
 min/midpoint/max ticks (which read raw run values like 1.6/1.9/2.2) with rounded bounds
@@ -206,6 +207,16 @@ only when relevant (a global `[hidden]{display:none!important}` reset was added 
 The shared `ask()` dialog gained per-field `type2/inputmode2/min2/max2` (and `*3`) so the
 secondary inputs can be date/number (events date, C25K week+run) — additive, existing callers
 unaffected.
+
+B17: trend-chart interaction split. Metric cycling moved from a whole-`#chartWrap` tap onto
+the `#metricBtn` alone; **tapping the chart now opens a per-run detail popup** instead.
+`renderChart` records `chartPts = [{cx (viewBox x), e:entry}]` (via `metricPoints` now
+carrying `e`); the `#chart` click handler maps tap `clientX → viewBox x` (using the SVG
+rect and `CHART_VBW=340`) and shows the nearest point's run in a popup — title = date, body
+= `runInfo(e)` "2.5 mi · 25:00 · 10:00 /mi" (distance · time · pace, or "time not logged").
+Nearest-by-x makes the small dots forgiving to tap. `ask()` gained `hideCancel` for the
+single-button (Close) info popup. Handlers are conflict-free because `#metricBtn` lives in
+`.chartHead` and the plot is the sibling `#chart` svg.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 

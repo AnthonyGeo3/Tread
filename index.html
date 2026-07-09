@@ -296,7 +296,7 @@
       <div class="eyebrow">Trend</div>
       <button class="metricBtn" id="metricBtn">Distance mi</button>
     </div>
-    <svg id="chart" viewBox="0 0 340 150" role="img" aria-label="Run trend. Tap to switch between distance, pace and time."></svg>
+    <svg id="chart" viewBox="0 0 340 150" role="img" aria-label="Run trend. Tap a point for that run’s details; use the button above to switch between distance, pace and time."></svg>
   </section>
 
   <section class="rhythm" id="rhythmWrap" hidden>
@@ -322,7 +322,7 @@
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B16</div>
+    <div class="build">TREAD B17</div>
   </footer>
 </div>
 
@@ -439,11 +439,13 @@ var fmtWeekday = new Intl.DateTimeFormat('en-GB',{weekday:'long'});
 /* ---------- trend chart ---------- */
 var METRICS = ['dist','pace','time'];
 var METRIC_LABEL = { dist:'Distance mi', pace:'Pace /mi \u00b7 faster \u2191', time:'Time' };
+var CHART_VBW = 340;      /* chart viewBox width, for tap\u2192coordinate mapping */
+var chartPts = [];        /* [{cx (viewBox), e:entry}] of the last render, for point taps */
 function metricPoints(kind){
   var pts = [];
   data.entries.forEach(function(e){
-    if(kind==='dist') pts.push({ d:e.d, v:e.m });
-    else if(e.t) pts.push({ d:e.d, v: kind==='time' ? e.t : e.t/e.m });
+    if(kind==='dist') pts.push({ d:e.d, v:e.m, e:e });
+    else if(e.t) pts.push({ d:e.d, v: kind==='time' ? e.t : e.t/e.m, e:e });
   });
   pts.sort(function(a,b){ return a.d-b.d; });
   return pts.slice(-30);
@@ -507,8 +509,11 @@ function renderChart(){
     pts.forEach(function(p,i){ dd += (i?' L ':'M ')+X(p.d).toFixed(1)+' '+Y(p.v).toFixed(1); });
     out += '<path class="cLine" d="'+dd+'"/>';
   }
+  chartPts = [];
   pts.forEach(function(p){
-    out += '<circle class="cDot" cx="'+X(p.d).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="3.5"/>';
+    var cx = X(p.d), cy = Y(p.v);
+    chartPts.push({ cx:cx, e:p.e });
+    out += '<circle class="cDot" cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="3.5"/>';
   });
   $('chart').innerHTML = out;
 }
@@ -845,9 +850,25 @@ document.querySelector('.chips').addEventListener('click', function(e){
   if(b) addMiles(parseFloat(b.dataset.m));
 });
 function byId(id){ for(var i=0;i<data.entries.length;i++) if(data.entries[i].id===id) return data.entries[i]; }
-$('chartWrap').addEventListener('click', function(){
+$('metricBtn').addEventListener('click', function(){
   data.metric = METRICS[(METRICS.indexOf(data.metric)+1)%METRICS.length];
   save(); renderChart();
+});
+function runInfo(e){
+  var parts = [ e.m.toFixed(1)+' mi' ];
+  if(e.t){ parts.push(fmtTime(e.t)); parts.push(fmtTime(Math.round(e.t/e.m))+' /mi'); }
+  else parts.push('time not logged');
+  return parts.join(' · ');
+}
+$('chart').addEventListener('click', function(ev){
+  if(!chartPts.length) return;
+  var rect = this.getBoundingClientRect();
+  if(!rect.width) return;
+  var vx = (ev.clientX - rect.left) / rect.width * CHART_VBW;   /* tap x → viewBox x */
+  var best = null, bd = Infinity;
+  chartPts.forEach(function(p){ var d = Math.abs(p.cx - vx); if(d < bd){ bd = d; best = p; } });
+  if(!best) return;
+  ask({ title: fmtDate.format(new Date(best.e.d)), text: runInfo(best.e), ok:'Close', hideCancel:true });
 });
 $('sortBtn').addEventListener('click', function(){
   logSort = LOG_SORTS[(LOG_SORTS.indexOf(logSort)+1)%LOG_SORTS.length];
@@ -928,6 +949,7 @@ function ask(opts){
   }
   dlgOk.textContent = opts.ok||'Save';
   dlgOk.classList.toggle('danger', !!opts.danger);
+  $('dlgCancel').hidden = !!opts.hideCancel;
   onOk = opts.onOk;
   if(dlg.showModal) dlg.showModal(); else dlg.setAttribute('open','');
   if(opts.input) inp.select();
