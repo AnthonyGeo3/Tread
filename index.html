@@ -125,11 +125,17 @@
   .nextWhen{font-size:18px; font-weight:900; font-style:italic; color:var(--ink); text-align:left;
             text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
   .nextHint{font-size:12px; color:var(--muted)}
+  .nextLabel{font-size:13.5px; font-weight:700; color:var(--ink)}
   #nextCard.due{border-color:var(--volt)}
   #nextCard.past{background:#f0f1ec}
+  .nextActions{display:flex; gap:8px; align-items:center; flex:none}
   .bump{font-size:12.5px; font-weight:700; color:var(--ink); background:var(--bg2);
         border-radius:999px; padding:8px 12px; border:1px solid var(--line); flex:none}
   .bump:active{background:var(--line)}
+  .tick{font-size:16px; font-weight:900; line-height:1; color:var(--volt-ink); background:var(--volt);
+        border-radius:999px; padding:8px 12px; border:1px solid var(--volt); flex:none}
+  .tick:active{filter:brightness(.94)}
+  canvas.confetti{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:9999}
   #eventsList{list-style:none}
   #eventsList li{display:flex; flex-direction:column; gap:6px; padding:8px 0}
   #eventsList li + li{border-top:1px solid var(--line)}
@@ -255,9 +261,13 @@
       <div class="nextMain">
         <div class="eyebrow">Next run</div>
         <button class="nextWhen" id="nextWhen" aria-label="Reschedule your next run">Tomorrow</button>
+        <div class="nextLabel" id="nextLabel" hidden></div>
         <div class="nextHint" id="nextHint" hidden></div>
       </div>
-      <button class="bump" id="nextBump" aria-label="Move to the next day">+1 day</button>
+      <div class="nextActions">
+        <button class="bump" id="nextBump" aria-label="Move to the next day">+1 day</button>
+        <button class="tick" id="nextDone" aria-label="Mark this run done">&check;</button>
+      </div>
     </div>
     <button class="planAdd" id="nextPlan" hidden>+ Plan your next run</button>
 
@@ -312,7 +322,7 @@
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B15</div>
+    <div class="build">TREAD B16</div>
   </footer>
 </div>
 
@@ -350,6 +360,7 @@ else if(data.c25k.done>27) data.c25k.done = 27;
 if(!Array.isArray(data.events)) data.events = [];
 data.events = data.events.filter(function(x){ return x && typeof x.d==='number' && typeof x.name==='string'; });
 if(!(data.next>0)) data.next = 0;
+if(typeof data.nextLabel!=='string') data.nextLabel = '';
 
 var total = function(){ return data.entries.reduce(function(a,e){ return a+e.m; },0); };
 
@@ -568,6 +579,8 @@ function renderNext(){
     $('nextWhen').textContent=lab.charAt(0).toUpperCase()+lab.slice(1);
     card.classList.toggle('due', due);
     card.classList.toggle('past', past);
+    var lblEl=$('nextLabel');
+    if(data.nextLabel){ lblEl.hidden=false; lblEl.textContent=data.nextLabel; } else lblEl.hidden=true;
     var hint=$('nextHint');
     if(past){ hint.hidden=false; hint.textContent='no rush — nudge it along whenever'; }
     else if(due){ hint.hidden=false; hint.textContent='today — go when you can'; }
@@ -622,15 +635,17 @@ function openC25K(){
 }
 function openNext(){
   var base=data.next>0?data.next:(todayMid()+DAY);
-  ask({ title:'Next run', text:'Pick the day you plan to run next. There’s only ever one — miss it and just move it along, no harm done. Leave blank to clear it.',
-        input:true, type:'date', value:isoOf(base), max:isoOf(todayMid()+400*DAY),
-        onOk:function(v){
-          v=(''+v).trim();
-          if(!v){ data.next=0; save(); render(false); return; }
-          var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v); if(!m) return;
+  ask({ title:'Next run', text:'When you plan to run next, and optionally what it is. There’s only ever one — miss it and just move it along, no harm done. Leave the day blank to clear it.',
+        input:true, type:'text', placeholder:'What’s the run? e.g. C25K W5 R2 (optional)', value: data.nextLabel||'',
+        input2:true, type2:'date', value2:isoOf(base), min2:isoOf(todayMid()), max2:isoOf(todayMid()+400*DAY),
+        onOk:function(label, datev){
+          datev=(''+datev).trim();
+          if(!datev){ data.next=0; data.nextLabel=''; save(); render(false); return; }
+          var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(datev); if(!m) return;
           var nd=new Date(+m[1],+m[2]-1,+m[3]); nd.setHours(0,0,0,0);
           if(isNaN(nd.getTime())) return;
-          data.next=nd.getTime(); save(); render(false);
+          data.next=nd.getTime(); data.nextLabel=(''+label).trim().slice(0,60);
+          save(); render(false);
         } });
 }
 function openEvent(ev){
@@ -661,6 +676,12 @@ $('nextWhen').addEventListener('click', openNext);
 $('nextPlan').addEventListener('click', openNext);
 $('nextBump').addEventListener('click', function(){
   data.next=Math.max(data.next+DAY, todayMid()); save(); render(false);  /* next day, but never into the past */
+});
+$('nextDone').addEventListener('click', function(){
+  var r=this.getBoundingClientRect();
+  confetti(r.left+r.width/2, r.top+r.height/2);
+  data.next=0; data.nextLabel=''; save(); render(false);
+  toast('Run done — nice one');
 });
 $('eventAdd').addEventListener('click', function(){ openEvent(null); });
 $('eventAdd2').addEventListener('click', function(){ openEvent(null); });
@@ -735,6 +756,31 @@ function toast(msg){
   clearTimeout(toast._t);
   toast._t = setTimeout(function(){ t.classList.remove('show'); }, 4200);
 }
+function confetti(ox, oy){
+  if(reduceMotion) return;
+  var cv=document.createElement('canvas'); cv.className='confetti';
+  var W=cv.width=innerWidth, H=cv.height=innerHeight;
+  if(ox==null){ ox=W/2; oy=H*0.4; }
+  document.body.appendChild(cv);
+  var ctx=cv.getContext('2d'), cols=['#c9f21e','#dcff55','#9fce14','#e0951c','#b9bdb9','#191c1a'], parts=[], i;
+  for(i=0;i<100;i++) parts.push({ x:ox, y:oy,
+    vx:(Math.random()-0.5)*11, vy:-(Math.random()*10+5), g:0.30+Math.random()*0.14,
+    r:3+Math.random()*4, rot:Math.random()*6.28, vr:(Math.random()-0.5)*0.5,
+    col:cols[Math.floor(Math.random()*cols.length)] });
+  var start=performance.now();
+  (function tick(now){
+    var t=now-start, alive=false; ctx.clearRect(0,0,W,H);
+    parts.forEach(function(p){
+      p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+      var a=Math.max(0, 1-t/1500);
+      if(a>0 && p.y<H+30){ alive=true;
+        ctx.save(); ctx.globalAlpha=a; ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle=p.col; ctx.fillRect(-p.r, -p.r*0.6, p.r*2, p.r*1.2); ctx.restore();
+      }
+    });
+    if(alive && t<1900) requestAnimationFrame(tick); else cv.remove();
+  })(start);
+}
 var MARKS = [
   [5,'5 miles banked \u2014 the habit is forming'],
   [10,'10 miles \u2014 double figures'],
@@ -767,7 +813,7 @@ function addMiles(m, tSec){
     data.c25k.done++;
     if(data.c25k.done >= 27) graduated = true;
   }
-  if(data.next && midnight(data.next) <= todayMid()) data.next = 0;  /* fulfilled \u2014 clear the cue */
+  if(data.next && midnight(data.next) <= todayMid()){ data.next = 0; data.nextLabel = ''; }  /* fulfilled \u2014 clear the cue */
   save(); render(true);
   var post = pre + m, msg = null, i;
   for(i = MARKS.length-1; i >= 0; i--)
@@ -923,6 +969,7 @@ $('restore').addEventListener('click', function(){
           if(p.c25k!==undefined) data.c25k = p.c25k;
           if(p.events!==undefined) data.events = p.events;
           if(p.next!==undefined) data.next = p.next;
+          if(p.nextLabel!==undefined) data.nextLabel = p.nextLabel;
           save(); render(true);
           toast('Restored ' + p.entries.length + (p.entries.length===1?' run':' runs'));
         } });
@@ -1106,8 +1153,8 @@ function recapCopy(s){
 }
 function recapConfigured(){ return !!(data.ejKey && data.ejService && data.ejTemplate); }
 function backupPayload(){
-  return JSON.stringify({ v:14, target:data.target, metric:data.metric,
-                          c25k:data.c25k, events:data.events, next:data.next, entries:data.entries });
+  return JSON.stringify({ v:16, target:data.target, metric:data.metric,
+                          c25k:data.c25k, events:data.events, next:data.next, nextLabel:data.nextLabel, entries:data.entries });
 }
 function parseBackup(txt){
   if(!txt) return null;
@@ -1135,9 +1182,11 @@ function parseBackup(txt){
     }) : [];
   var next;
   if('next' in o) next = (typeof o.next==='number' && o.next>0) ? o.next : 0;
+  var nextLabel;
+  if('nextLabel' in o) nextLabel = (typeof o.nextLabel==='string') ? o.nextLabel.slice(0,60) : '';
   return { target: (typeof o.target==='number' ? o.target : 0),
            metric: (o.metric==='pace'||o.metric==='time') ? o.metric : 'dist',
-           entries: entries, c25k: c25k, events: events, next: next };
+           entries: entries, c25k: c25k, events: events, next: next, nextLabel: nextLabel };
 }
 function recapBody(s){
   return recapCopy(s)

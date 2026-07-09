@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B15 · sw.js CACHE `tread-v15` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B16 · sw.js CACHE `tread-v16` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -33,9 +33,10 @@ Judge every feature against that, not against "fitness app" convention.
 `localStorage['tread']` = `{ target: number, metric?: 'dist'|'pace'|'time', entries: [{ id: string, m: number /*miles*/, d: number /*epoch ms*/, t?: number /*duration in seconds, optional*/ }] }`
 Plus (B11–B14): `ejKey/ejService/ejTemplate` (EmailJS recap creds), `recapLast` (ms of last
 recap send), `c25k` (`{done:0–27}` or `null` = programme off), `events` (`[{id, name, d /*epoch ms*/}]`),
-`next` (epoch ms midnight of the single planned next run, or 0). Events also carry optional
-`m` (target distance in miles, B15). All have defensive defaults at the top of the script;
-`c25k`, `events` (incl. `m`), `next` are carried in the backup payload (v15).
+`next` (epoch ms midnight of the single planned next run, or 0) + `nextLabel` (optional text
+for that run, B16). Events also carry optional `m` (target distance in miles, B15). All have
+defensive defaults at the top of the script; `c25k`, `events` (incl. `m`), `next`, `nextLabel`
+are carried in the backup payload (v16).
 The run log renders sorted by `d` descending — dates are user-editable, so never rely on
 array insertion order for display.
 Everything else (totals, %, weekly count, longest, milestones) is derived — keep it
@@ -185,9 +186,15 @@ only when relevant (a global `[hidden]{display:none!important}` reset was added 
   missed runs never pile into a guilt mountain. `dayLabel` shows Today/Tomorrow/weekday/
   "12 Sep"; overdue is warm not red (`.past`, "no rush — nudge it along whenever"), today is
   `.due` (volt border). `+1 day` bump = `max(next+DAY, todayMid)` (never lands in the past,
-  so an overdue cue bumps to today, then tomorrow). Tapping the day opens a date picker
-  (blank clears). Logging a run **clears the cue only if it was due** (`midnight(next) <=
-  todayMid`) — an early/bonus run leaves a future plan standing.
+  so an overdue cue bumps to today, then tomorrow). Tapping the day opens `openNext` (a text
+  label + date picker; blank date clears). Logging a run **clears the cue only if it was due**
+  (`midnight(next) <= todayMid`) — an early/bonus run leaves a future plan standing.
+  B16: the cue carries an optional free-text **label** (`data.nextLabel`, e.g. "C25K W5 R2",
+  "30 min open run") shown under the day, and a **tick** button (`#nextDone`, volt) beside
+  `+1 day`. Ticking = "I did it": fires `confetti()` (canvas burst from the button, volt/
+  concrete palette, skipped under `reduceMotion`), toasts "Run done — nice one", and clears
+  the cue (does **not** log miles or advance C25K — those stay tied to the Add-run flow, so
+  no double-counting; the plan and the mileage log are intentionally separate).
 - **Events / races** (`#eventsCard` + `#eventAdd2` ghost): user-entered `data.events`
   `[{id,name,d,m?}]`, shown as upcoming-only (past auto-filtered) countdowns via `countdown()`.
   Add/edit through `openEvent` (name + date picker + optional distance; blank name deletes when
