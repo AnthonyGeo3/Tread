@@ -133,6 +133,12 @@
     width:100%; margin-top:14px; font-size:17px; font-weight:700; padding:12px 14px;
     border:1.5px solid var(--line); border-radius:14px; background:#fff;
   }
+  dialog textarea{
+    width:100%; margin-top:14px; font-size:12px; line-height:1.4;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    padding:12px 14px; border:1.5px solid var(--line); border-radius:14px;
+    background:#fff; color:var(--ink); resize:vertical; min-height:104px;
+  }
   .dlgrow{display:flex; gap:10px; margin-top:16px}
   .dlgrow button{flex:1; font-weight:800; padding:12px; border-radius:14px; border:1.5px solid var(--line)}
   .dlgrow .ok{background:var(--ink); color:#fff; border-color:var(--ink)}
@@ -222,8 +228,9 @@
   <footer>
     <button class="linky" id="editTarget">Change target</button>&middot;
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
+    <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B11</div>
+    <div class="build">TREAD B12</div>
   </footer>
 </div>
 
@@ -233,6 +240,7 @@
   <input id="dlgInput" type="number" inputmode="decimal" min="1" hidden>
   <input id="dlgInput2" type="text" hidden>
   <input id="dlgInput3" type="text" hidden>
+  <textarea id="dlgArea" rows="5" hidden aria-label="Backup text"></textarea>
   <div class="dlgrow">
     <button id="dlgCancel">Cancel</button>
     <button id="dlgOk" class="ok">Save</button>
@@ -570,6 +578,12 @@ function ask(opts){
       el.value = opts[f[3]]||'';
     }
   });
+  var area=$('dlgArea');
+  area.hidden = !opts.area;
+  if(opts.area){
+    if(opts.areaPlaceholder) area.setAttribute('placeholder', opts.areaPlaceholder); else area.removeAttribute('placeholder');
+    area.value = opts.areaValue||'';
+  }
   dlgOk.textContent = opts.ok||'Save';
   dlgOk.classList.toggle('danger', !!opts.danger);
   onOk = opts.onOk;
@@ -578,7 +592,7 @@ function ask(opts){
 }
 function closeDlg(){ if(dlg.close) dlg.close(); else dlg.removeAttribute('open'); }
 $('dlgCancel').addEventListener('click', closeDlg);
-dlgOk.addEventListener('click', function(){ if(onOk) onOk($('dlgInput').value, $('dlgInput2').value, $('dlgInput3').value); closeDlg(); });
+dlgOk.addEventListener('click', function(){ if(onOk) onOk($('dlgInput').value, $('dlgInput2').value, $('dlgInput3').value, $('dlgArea').value); closeDlg(); });
 $('dlgInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); dlgOk.click(); } });
 
 $('editTarget').addEventListener('click', function(){
@@ -590,7 +604,7 @@ $('reset').addEventListener('click', function(){
         ok:'Start fresh', danger:true, onOk:function(){ data.entries=[]; save(); render(true); } });
 });
 $('editRecap').addEventListener('click', function(){
-  ask({ title:'Weekly recap email', text:'A once-a-week note with the past week’s runs, sent through your own free EmailJS account (emailjs.com) so no server is needed. Create a service and a template with a single {{message}} variable, then paste the three IDs below.',
+  ask({ title:'Weekly recap email', text:'A once-a-week note with the past week’s runs, sent through your own free EmailJS account (emailjs.com) so no server is needed. Every email also carries a full backup of your runs, so the latest one can restore them if they’re ever lost. Save & test sends one now.',
         input:true, type:'text', placeholder:'Public key', value:data.ejKey,
         input2:true, placeholder2:'Service ID', value2:data.ejService,
         input3:true, placeholder3:'Template ID', value3:data.ejTemplate,
@@ -599,6 +613,19 @@ $('editRecap').addEventListener('click', function(){
           if(recapConfigured()){
             sendRecap(function(ok){ toast(ok ? 'Test recap sent — check your inbox' : 'Send failed — check the IDs and try again'); });
           }
+        } });
+});
+$('restore').addEventListener('click', function(){
+  ask({ title:'Restore from backup', text:'Paste a weekly recap email (or just the backup block from it) below. This replaces your current run log with the backup — your email settings on this device are kept.',
+        area:true, areaPlaceholder:'Paste the whole email, or everything from { to } …',
+        ok:'Restore', danger:true, onOk:function(a, b, c, txt){
+          var p = parseBackup(txt);
+          if(!p){ toast('Couldn’t read a backup there — paste the { … } block'); return; }
+          data.target = p.target>0 ? p.target : data.target;
+          data.metric = p.metric;
+          data.entries = p.entries;
+          save(); render(true);
+          toast('Restored ' + p.entries.length + (p.entries.length===1?' run':' runs'));
         } });
 });
 
@@ -779,13 +806,39 @@ function recapCopy(s){
   return lines[Math.floor(Math.random()*lines.length)];
 }
 function recapConfigured(){ return !!(data.ejKey && data.ejService && data.ejTemplate); }
+function backupPayload(){
+  return JSON.stringify({ v:12, target:data.target, metric:data.metric, entries:data.entries });
+}
+function parseBackup(txt){
+  if(!txt) return null;
+  var a = txt.indexOf('{'), b = txt.lastIndexOf('}');
+  if(a<0 || b<=a) return null;
+  var o; try{ o = JSON.parse(txt.slice(a, b+1)); }catch(e){ return null; }
+  if(!o || !Array.isArray(o.entries)) return null;
+  var entries = o.entries.filter(function(e){
+    return e && typeof e.m==='number' && e.m>0 && typeof e.d==='number' && e.d>0;
+  }).map(function(e){
+    var r = { id: (e.id!=null ? String(e.id) : String(e.d)+'-'+Math.random().toString(36).slice(2,7)), m:e.m, d:e.d };
+    if(typeof e.t==='number' && e.t>0) r.t = e.t;
+    return r;
+  });
+  return { target: (typeof o.target==='number' ? o.target : 0),
+           metric: (o.metric==='pace'||o.metric==='time') ? o.metric : 'dist',
+           entries: entries };
+}
+function recapBody(s){
+  return recapCopy(s)
+    + '\n\n————————————\n'
+    + 'BACKUP — if you ever lose your runs, open Tread, tap Restore, and paste everything from the first { to the last } below:\n\n'
+    + backupPayload();
+}
 function sendRecap(onDone){
   var now = Date.now(), since = data.recapLast || (now - 7*86400000);
   var s = weekStats(since);
   fetch('https://api.emailjs.com/api/v1.0/email/send', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ service_id:data.ejService, template_id:data.ejTemplate, user_id:data.ejKey,
-                            template_params:{ message:recapCopy(s), run_count:s.n, miles:s.miles.toFixed(1) } })
+                            template_params:{ message:recapBody(s), run_count:s.n, miles:s.miles.toFixed(1) } })
   }).then(function(r){
     if(!r.ok) throw new Error('send failed');
     data.recapLast = now; save();

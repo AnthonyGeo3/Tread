@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B11 · sw.js CACHE `tread-v11` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B12 · sw.js CACHE `tread-v12` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -134,13 +134,32 @@ Requires the user to create their own free EmailJS service + a template containi
 (public key, service ID, template ID) are pasted into the settings dialog and live in
 `data.ejKey/ejService/ejTemplate`, save-triggers an immediate test send. Silent no-op if
 unconfigured or offline; only surfaces a toast on the deliberate test send or a successful
-auto-send, never on routine auto-send failure.
+auto-send, never on routine auto-send failure. **(Superseded by B12 — the email is now also
+the backup; see below.)**
+
+B12: the recap email doubles as the **backup** (folds backlog item #1 into the recap
+instead of separate clipboard buttons). `recapBody` appends a machine-readable block to the
+motivational copy — a fenced `backupPayload()` = `JSON.stringify({v, target, metric, entries})`
+(email credentials are deliberately **excluded** — least data, and so restore can't clobber
+the target device's own EmailJS config). Because it's baked into `{{message}}`, every recap
+carries a full backup regardless of the user's template, and there's no separate `{{backup}}`
+variable to forget. Freshness caveat: a backup is only as current as the last weekly send —
+hitting **Save & test** in the recap dialog forces a fresh backup email on demand.
+New `Restore` footer link → `ask()`-dialog with a `<textarea>` (`#dlgArea`, added to the
+shared dialog alongside a 4th `onOk` arg). `parseBackup` is forgiving: it slices from the
+first `{` to the last `}` so the user can paste the **whole email** (preamble, emoji and all),
+`JSON.parse`s that, validates `entries` is an array, and sanitises each row (numeric `m>0`,
+`d>0`, optional `t>0`, regenerates missing ids). Restore **replaces** target/metric/entries
+(danger-styled, confirmed) but leaves `ejKey/ejService/ejTemplate/recapLast` untouched, so
+recovering onto a configured device doesn't wipe its email setup.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
-1. **Export / import backup (S)** — buttons in the footer: copy `localStorage['tread']`
-   JSON to clipboard, paste to restore. Losing months of logged runs is the fastest way
-   to kill both the habit and trust in the app. Do this before anything shinier.
+1. **Export / import backup — shipped in B11–B12.** Delivered as the weekly recap email
+   (every send embeds a full JSON backup) plus a `Restore` footer link that reads a backup
+   pasted from any recap email. This replaced the originally-planned clipboard copy/paste
+   buttons. Note the freshness caveat: the newest backup is only as recent as the last
+   weekly send (or a manual Save & test).
 2. **C25K programme card (S–M)** — setting for current week/run (he's mid-programme, so
    an offset, not a start date). Show "Week 6 · run 2 of 3", tick runs off as they're
    logged, big celebration at W9R3 graduation. Completion structure is the strongest
