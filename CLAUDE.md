@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B13 · sw.js CACHE `tread-v13` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B14 · sw.js CACHE `tread-v14` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -31,6 +31,10 @@ Judge every feature against that, not against "fitness app" convention.
 ## Data schema
 
 `localStorage['tread']` = `{ target: number, metric?: 'dist'|'pace'|'time', entries: [{ id: string, m: number /*miles*/, d: number /*epoch ms*/, t?: number /*duration in seconds, optional*/ }] }`
+Plus (B11–B14): `ejKey/ejService/ejTemplate` (EmailJS recap creds), `recapLast` (ms of last
+recap send), `c25k` (`{done:0–27}` or `null` = programme off), `events` (`[{id, name, d /*epoch ms*/}]`),
+`next` (epoch ms midnight of the single planned next run, or 0). All have defensive defaults at the
+top of the script; `c25k`, `events`, `next` are also carried in the backup payload (v14).
 The run log renders sorted by `d` descending — dates are user-editable, so never rely on
 array insertion order for display.
 Everything else (totals, %, weekly count, longest, milestones) is derived — keep it
@@ -164,6 +168,33 @@ in-progress. Header note is factual: "N of 8 weeks". Hidden until 2+ runs **and*
 one run in the last 8 weeks — if the user has lapsed (nothing in 8 weeks) the strip stays
 hidden rather than showing a wall of empty slots (the welcome-back toast covers that case).
 
+B14: a `.plan` section between the readout and the add row holding three cards, each shown
+only when relevant (a global `[hidden]{display:none!important}` reset was added so id-level
+`display` rules can't defeat the `hidden` attribute — `#nextCard` is `display:flex`):
+- **C25K programme card** (`#c25kCard`, opt-in via footer `C25K` link or its `Adjust` button
+  → `openC25K`). Stores `data.c25k = {done:0–27}` (27 sessions = 9 weeks × 3). Displays the
+  **next** run to do — `c25kPos(done)` → "Week X · run Y of 3" — a volt progress bar, and
+  "N of 27 runs". **Logging a run auto-advances `done`** (`addMiles`); reaching 27 fires a
+  graduation toast ("…you just graduated Couch to 5K! 🎓", overrides milestone/longest copy)
+  and the card switches to a "Graduated 🎓" state. Position is adjustable (the dialog sets
+  the next week/run; blank week turns the card off) in case auto-advance drifts from a
+  non-programme run. Advance is capped at 27.
+- **Next-run cue** (`#nextCard`): a **single** planned day, `data.next` (midnight ms) or a
+  `#nextPlan` ghost prompt when unset (shown once ≥1 run). Deliberately one-at-a-time so
+  missed runs never pile into a guilt mountain. `dayLabel` shows Today/Tomorrow/weekday/
+  "12 Sep"; overdue is warm not red (`.past`, "no rush — nudge it along whenever"), today is
+  `.due` (volt border). `+1 day` bump = `max(next+DAY, todayMid)` (never lands in the past,
+  so an overdue cue bumps to today, then tomorrow). Tapping the day opens a date picker
+  (blank clears). Logging a run **clears the cue only if it was due** (`midnight(next) <=
+  todayMid`) — an early/bonus run leaves a future plan standing.
+- **Events / races** (`#eventsCard` + `#eventAdd2` ghost): user-entered `data.events`
+  `[{id,name,d}]`, shown as upcoming-only (past auto-filtered) countdowns via `countdown()`.
+  Add/edit through `openEvent` (name + date picker; blank name deletes when editing). Names
+  are `esc()`-escaped — the only free-text field rendered via innerHTML, so **keep it escaped**.
+The shared `ask()` dialog gained per-field `type2/inputmode2/min2/max2` (and `*3`) so the
+secondary inputs can be date/number (events date, C25K week+run) — additive, existing callers
+unaffected.
+
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
 1. **Export / import backup — shipped in B11–B12.** Delivered as the weekly recap email
@@ -171,10 +202,12 @@ hidden rather than showing a wall of empty slots (the welcome-back toast covers 
    pasted from any recap email. This replaced the originally-planned clipboard copy/paste
    buttons. Note the freshness caveat: the newest backup is only as recent as the last
    weekly send (or a manual Save & test).
-2. **C25K programme card (S–M)** — setting for current week/run (he's mid-programme, so
-   an offset, not a start date). Show "Week 6 · run 2 of 3", tick runs off as they're
-   logged, big celebration at W9R3 graduation. Completion structure is the strongest
-   novice motivator there is.
+2. **C25K programme card + events — shipped in B14.** Programme card ticks runs off toward
+   W9R3 graduation; a single bump-able next-run cue; a user-managed races/events list with
+   countdowns. See the B14 note above. **Post-graduation follow-through is still open**: the
+   card currently stops at "Graduated 🎓" — the planned next step is to roll graduation into
+   a rhythm-keeping goal (the weekly rhythm strip is the natural anchor) so the structure
+   doesn't just vanish at the exact known drop-off point.
 3. **Weekly rhythm strip — shipped in B13.** Last 8 Monday-weeks as bars (runs per week)
    between the trend chart and the run log; rest weeks are quiet empty slots, never red.
    Hidden when lapsed (nothing in 8 weeks). See the B13 note above.

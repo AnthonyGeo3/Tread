@@ -25,6 +25,7 @@
   }
   .wrap{max-width:460px; margin:0 auto}
   button{font:inherit; color:inherit; background:none; border:0; cursor:pointer; touch-action:manipulation}
+  [hidden]{display:none !important}
   :focus-visible{outline:2px solid var(--ink); outline-offset:2px; border-radius:6px}
 
   /* header */
@@ -107,6 +108,35 @@
   #rhythm .rTrack.rNow{stroke:var(--muted); stroke-width:1.3}
   #rhythm .rBar{fill:var(--volt)}
 
+  /* plan cards: C25K · next run · events */
+  .plan{display:flex; flex-direction:column; gap:10px; margin-top:18px}
+  .plan:empty{display:none}
+  .card{background:var(--surface); border:1.5px solid var(--line); border-radius:16px; padding:12px 14px}
+  .cardHead{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
+  .planAdd{align-self:flex-start; font-size:13px; font-weight:700; color:var(--muted);
+           border:1.4px dashed var(--line); border-radius:999px; padding:8px 14px; background:transparent}
+  .planAdd:active{background:var(--surface)}
+  .c25kNow{font-size:18px; font-weight:900; font-style:italic; color:var(--ink)}
+  .pbar{height:8px; background:var(--bg2); border-radius:999px; margin-top:8px; overflow:hidden}
+  .pbarFill{height:100%; width:0; background:var(--volt); border-radius:999px; transition:width .5s ease}
+  .c25kSub{font-size:12.5px; color:var(--muted); margin-top:6px}
+  #nextCard{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .nextMain{display:flex; flex-direction:column; gap:2px; min-width:0}
+  .nextWhen{font-size:18px; font-weight:900; font-style:italic; color:var(--ink); text-align:left;
+            text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
+  .nextHint{font-size:12px; color:var(--muted)}
+  #nextCard.due{border-color:var(--volt)}
+  #nextCard.past{background:#f0f1ec}
+  .bump{font-size:12.5px; font-weight:700; color:var(--ink); background:var(--bg2);
+        border-radius:999px; padding:8px 12px; border:1px solid var(--line); flex:none}
+  .bump:active{background:var(--line)}
+  #eventsList{list-style:none}
+  #eventsList li{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0}
+  #eventsList li + li{border-top:1px solid var(--line)}
+  .evName{font-weight:800; color:var(--ink); text-align:left; flex:1; min-width:0;
+          text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
+  .evWhen{font-size:12.5px; color:var(--muted); text-align:right; white-space:nowrap}
+
   /* log */
   .hist{margin-top:26px}
   .histHead{display:flex; justify-content:space-between; align-items:center}
@@ -126,7 +156,7 @@
   .empty{padding:14px 2px; color:var(--muted); font-size:14px}
 
   /* footer */
-  footer{display:flex; align-items:center; gap:6px; margin-top:22px; font-size:13px; color:var(--muted)}
+  footer{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin-top:22px; font-size:13px; color:var(--muted)}
   .linky{font-size:13px; font-weight:700; color:var(--ink); text-decoration:underline; text-underline-offset:3px; padding:4px 2px}
   .build{margin-left:auto; font-size:11px; letter-spacing:.14em}
 
@@ -207,6 +237,37 @@
     <div class="stats stats2" id="stats2" hidden><b id="wkRuns">0</b> <span id="wkWord">runs</span> this week &middot; longest <b id="prMi">0.0</b> mi</div>
   </section>
 
+  <section class="plan">
+    <div class="card c25k" id="c25kCard" hidden>
+      <div class="cardHead">
+        <div class="eyebrow">Couch to 5K</div>
+        <button class="metricBtn" id="c25kEdit" aria-label="Adjust programme position">Adjust</button>
+      </div>
+      <div class="c25kNow" id="c25kNow">Week 1 &middot; run 1 of 3</div>
+      <div class="pbar"><div class="pbarFill" id="c25kBar"></div></div>
+      <div class="c25kSub" id="c25kSub">0 of 27 runs</div>
+    </div>
+
+    <div class="card next" id="nextCard" hidden>
+      <div class="nextMain">
+        <div class="eyebrow">Next run</div>
+        <button class="nextWhen" id="nextWhen" aria-label="Reschedule your next run">Tomorrow</button>
+        <div class="nextHint" id="nextHint" hidden></div>
+      </div>
+      <button class="bump" id="nextBump" aria-label="Move to the next day">+1 day</button>
+    </div>
+    <button class="planAdd" id="nextPlan" hidden>+ Plan your next run</button>
+
+    <div class="card events" id="eventsCard" hidden>
+      <div class="cardHead">
+        <div class="eyebrow">Coming up</div>
+        <button class="metricBtn" id="eventAdd" aria-label="Add a race or event">+ Add</button>
+      </div>
+      <ul id="eventsList"></ul>
+    </div>
+    <button class="planAdd" id="eventAdd2" hidden>+ Add a race or event</button>
+  </section>
+
   <div class="addrow">
     <input id="miles" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="Miles" aria-label="Miles run">
     <input id="mins" type="text" inputmode="decimal" placeholder="mm:ss" aria-label="Time to complete (optional)">
@@ -243,11 +304,12 @@
   </section>
 
   <footer>
+    <button class="linky" id="c25kLink">C25K</button>&middot;
     <button class="linky" id="editTarget">Change target</button>&middot;
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B13</div>
+    <div class="build">TREAD B14</div>
   </footer>
 </div>
 
@@ -280,6 +342,11 @@ if(typeof data.ejKey!=='string') data.ejKey = '';
 if(typeof data.ejService!=='string') data.ejService = '';
 if(typeof data.ejTemplate!=='string') data.ejTemplate = '';
 if(!(data.recapLast>0)) data.recapLast = 0;
+if(!data.c25k || typeof data.c25k.done!=='number' || data.c25k.done<0) data.c25k = null;
+else if(data.c25k.done>27) data.c25k.done = 27;
+if(!Array.isArray(data.events)) data.events = [];
+data.events = data.events.filter(function(x){ return x && typeof x.d==='number' && typeof x.name==='string'; });
+if(!(data.next>0)) data.next = 0;
 
 var total = function(){ return data.entries.reduce(function(a,e){ return a+e.m; },0); };
 
@@ -306,6 +373,30 @@ function parseTime(v){
   return null;
 }
 
+/* ---------- date / planning helpers ---------- */
+var DAY = 86400000;
+function midnight(ts){ var d=new Date(ts); d.setHours(0,0,0,0); return d.getTime(); }
+function todayMid(){ return midnight(Date.now()); }
+function isoOf(ts){ var d=new Date(ts); return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate()); }
+function esc(s){ return (''+s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function dayLabel(ts){
+  var diff = Math.round((midnight(ts)-todayMid())/DAY);
+  if(diff===0) return 'today';
+  if(diff===1) return 'tomorrow';
+  if(diff===-1) return 'yesterday';
+  if(diff>1 && diff<7) return fmtWeekday.format(new Date(ts));
+  if(diff<-1 && diff>-7) return 'last '+fmtWeekday.format(new Date(ts));
+  return fmtDay.format(new Date(ts));
+}
+function countdown(ts){
+  var diff = Math.round((midnight(ts)-todayMid())/DAY);
+  if(diff<=0) return 'today';
+  if(diff===1) return 'tomorrow';
+  if(diff<14) return 'in '+diff+' days';
+  return 'in '+Math.round(diff/7)+' weeks';
+}
+function c25kPos(done){ return { week: Math.floor(done/3)+1, run: done%3+1 }; }
+
 /* ---------- wear colour ---------- */
 function hexLerp(a,b,t){
   var pa=[1,3,5].map(function(i){return parseInt(a.substr(i,2),16);});
@@ -329,6 +420,7 @@ function statusLabel(p){
 }
 var fmtDate = new Intl.DateTimeFormat('en-GB',{weekday:'short', day:'numeric', month:'short'});
 var fmtDay = new Intl.DateTimeFormat('en-GB',{day:'numeric', month:'short'});
+var fmtWeekday = new Intl.DateTimeFormat('en-GB',{weekday:'long'});
 
 /* ---------- trend chart ---------- */
 var METRICS = ['dist','pace','time'];
@@ -447,6 +539,120 @@ function renderRhythm(){
   $('rhythm').setAttribute('aria-label', 'Runs per week over the last 8 weeks. You ran in '+active+' of them.');
 }
 
+/* ---------- plan cards: C25K programme · next-run cue · events ---------- */
+function renderC25K(){
+  var card=$('c25kCard');
+  if(!data.c25k){ card.hidden=true; return; }
+  card.hidden=false;
+  var done=data.c25k.done;
+  if(done>=27){
+    $('c25kNow').textContent='Graduated 🎓';
+    $('c25kBar').style.width='100%';
+    $('c25kSub').textContent='27 of 27 runs — you can run 5K';
+  } else {
+    var pos=c25kPos(done);
+    $('c25kNow').textContent='Week '+pos.week+' · run '+pos.run+' of 3';
+    $('c25kBar').style.width=(done/27*100).toFixed(1)+'%';
+    $('c25kSub').textContent=done+' of 27 runs';
+  }
+}
+function renderNext(){
+  var card=$('nextCard'), plan=$('nextPlan'), hasRuns=data.entries.length>0;
+  if(data.next>0){
+    plan.hidden=true; card.hidden=false;
+    var nm=midnight(data.next), due=nm===todayMid(), past=nm<todayMid();
+    var lab=dayLabel(data.next);
+    $('nextWhen').textContent=lab.charAt(0).toUpperCase()+lab.slice(1);
+    card.classList.toggle('due', due);
+    card.classList.toggle('past', past);
+    var hint=$('nextHint');
+    if(past){ hint.hidden=false; hint.textContent='no rush — nudge it along whenever'; }
+    else if(due){ hint.hidden=false; hint.textContent='today — go when you can'; }
+    else hint.hidden=true;
+  } else {
+    card.hidden=true;
+    plan.hidden=!hasRuns;
+  }
+}
+function upcomingEvents(){
+  var t=todayMid();
+  return data.events.filter(function(x){ return midnight(x.d)>=t; }).sort(function(a,b){ return a.d-b.d; });
+}
+function renderEvents(){
+  var card=$('eventsCard'), add2=$('eventAdd2'), hasRuns=data.entries.length>0, ev=upcomingEvents();
+  if(ev.length){
+    add2.hidden=true; card.hidden=false;
+    var out='';
+    ev.forEach(function(e){
+      out+='<li><button class="evName" data-ev="'+e.id+'" aria-label="Edit event">'+esc(e.name)+'</button>'+
+           '<span class="evWhen">'+fmtDay.format(new Date(e.d))+' · '+countdown(e.d)+'</span></li>';
+    });
+    $('eventsList').innerHTML=out;
+  } else {
+    card.hidden=true;
+    add2.hidden=!hasRuns;
+  }
+}
+
+/* ----- plan dialogs & handlers ----- */
+function openC25K(){
+  var on=!!data.c25k, pos=on?c25kPos(Math.min(26,data.c25k.done)):{week:'',run:''};
+  ask({ title:'Couch to 5K', text:'Which run are you on next? Runs tick off as you log them; graduation is week 9, run 3. Leave the week blank to switch the card off.',
+        input:true, type:'number', inputmode:'numeric', placeholder:'Week (1–9)', max:9, value: on?pos.week:'',
+        input2:true, type2:'number', inputmode2:'numeric', placeholder2:'Run (1–3)', min2:1, max2:3, value2: on?pos.run:'',
+        onOk:function(wk, rn){
+          wk=parseInt(wk,10);
+          if(!(wk>=1 && wk<=9)){ data.c25k=null; save(); render(false); return; }
+          rn=parseInt(rn,10); if(!(rn>=1 && rn<=3)) rn=1;
+          data.c25k={ done:(wk-1)*3+(rn-1) }; save(); render(false);
+        } });
+}
+function openNext(){
+  var base=data.next>0?data.next:(todayMid()+DAY);
+  ask({ title:'Next run', text:'Pick the day you plan to run next. There’s only ever one — miss it and just move it along, no harm done. Leave blank to clear it.',
+        input:true, type:'date', value:isoOf(base), max:isoOf(todayMid()+400*DAY),
+        onOk:function(v){
+          v=(''+v).trim();
+          if(!v){ data.next=0; save(); render(false); return; }
+          var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v); if(!m) return;
+          var nd=new Date(+m[1],+m[2]-1,+m[3]); nd.setHours(0,0,0,0);
+          if(isNaN(nd.getTime())) return;
+          data.next=nd.getTime(); save(); render(false);
+        } });
+}
+function openEvent(ev){
+  var isEdit=!!ev;
+  ask({ title:isEdit?'Edit event':'Add a race or event',
+        text:'A race or run you’ve signed up for — it shows as a countdown. Leave the name blank to '+(isEdit?'delete it':'cancel')+'.',
+        input:true, type:'text', placeholder:'Name (e.g. Autumn 5K)', value: ev?ev.name:'',
+        input2:true, type2:'date', value2: isoOf(ev?ev.d:(todayMid()+14*DAY)), min2:isoOf(todayMid()),
+        ok:isEdit?'Save':'Add',
+        onOk:function(name, datev){
+          name=(''+name).trim();
+          if(!name){ if(isEdit){ data.events=data.events.filter(function(x){ return x.id!==ev.id; }); save(); render(false); } return; }
+          var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec((''+datev).trim()); if(!m) return;
+          var nd=new Date(+m[1],+m[2]-1,+m[3]); nd.setHours(0,0,0,0);
+          if(isNaN(nd.getTime())) return;
+          if(isEdit){ ev.name=name.slice(0,80); ev.d=nd.getTime(); }
+          else data.events.push({ id:Date.now()+Math.random().toString(16).slice(2), name:name.slice(0,80), d:nd.getTime() });
+          save(); render(false);
+        } });
+}
+$('c25kLink').addEventListener('click', openC25K);
+$('c25kEdit').addEventListener('click', openC25K);
+$('nextWhen').addEventListener('click', openNext);
+$('nextPlan').addEventListener('click', openNext);
+$('nextBump').addEventListener('click', function(){
+  data.next=Math.max(data.next+DAY, todayMid()); save(); render(false);  /* next day, but never into the past */
+});
+$('eventAdd').addEventListener('click', function(){ openEvent(null); });
+$('eventAdd2').addEventListener('click', function(){ openEvent(null); });
+$('eventsList').addEventListener('click', function(e){
+  var b=e.target.closest('button[data-ev]'); if(!b) return;
+  var ev=null, i; for(i=0;i<data.events.length;i++) if(data.events[i].id===b.dataset.ev) ev=data.events[i];
+  if(ev) openEvent(ev);
+});
+
 /* ---------- run-log sort (session-only; resets to date order on load) ---------- */
 var LOG_SORTS = ['date','dist','time','pace'];
 var LOG_LABEL = { date:'Newest', dist:'Longest', time:'Longest time', pace:'Fastest' };
@@ -500,6 +706,9 @@ function render(splash){
   });
   renderChart();
   renderRhythm();
+  renderC25K();
+  renderNext();
+  renderEvents();
 }
 
 /* ---------- moments ---------- */
@@ -536,6 +745,12 @@ function addMiles(m, tSec){
   var entry = { id: Date.now()+Math.random().toString(16).slice(2), m:m, d:Date.now() };
   if(tSec) entry.t = tSec;
   data.entries.push(entry);
+  var graduated = false;
+  if(data.c25k && data.c25k.done < 27){
+    data.c25k.done++;
+    if(data.c25k.done >= 27) graduated = true;
+  }
+  if(data.next && midnight(data.next) <= todayMid()) data.next = 0;  /* fulfilled \u2014 clear the cue */
   save(); render(true);
   var post = pre + m, msg = null, i;
   for(i = MARKS.length-1; i >= 0; i--)
@@ -543,6 +758,7 @@ function addMiles(m, tSec){
   if(wasEmpty) msg = 'Run one logged \u2014 welcome to the club';
   else if(m >= 3.1 && !had5k) msg = 'A full 5K in one go \u2014 that\u2019s the whole point of C25K';
   else if(!msg && m > prevMax) msg = 'New longest run \u2014 '+m.toFixed(1)+' mi';
+  if(graduated) msg = 'Week 9, run 3 \u2014 you just graduated Couch to 5K! \ud83c\udf93';
   if(msg){ toast(msg); S.amp = 15; }
 }
 $('addBtn').addEventListener('click', function(){
@@ -628,11 +844,16 @@ function ask(opts){
     if(opts.inputmode) inp.setAttribute('inputmode', opts.inputmode); else inp.removeAttribute('inputmode');
     inp.value = opts.value;
   }
-  [['dlgInput2','input2','placeholder2','value2'], ['dlgInput3','input3','placeholder3','value3']].forEach(function(f){
+  [['dlgInput2','input2','placeholder2','value2','type2','inputmode2','min2','max2'],
+   ['dlgInput3','input3','placeholder3','value3','type3','inputmode3','min3','max3']].forEach(function(f){
     var el=$(f[0]);
     el.hidden = !opts[f[1]];
     if(opts[f[1]]){
+      el.type = opts[f[4]] || 'text';
       if(opts[f[2]]) el.setAttribute('placeholder', opts[f[2]]); else el.removeAttribute('placeholder');
+      if(opts[f[5]]) el.setAttribute('inputmode', opts[f[5]]); else el.removeAttribute('inputmode');
+      if(opts[f[6]]!=null) el.setAttribute('min', opts[f[6]]); else el.removeAttribute('min');
+      if(opts[f[7]]!=null) el.setAttribute('max', opts[f[7]]); else el.removeAttribute('max');
       el.value = opts[f[3]]||'';
     }
   });
@@ -682,6 +903,9 @@ $('restore').addEventListener('click', function(){
           data.target = p.target>0 ? p.target : data.target;
           data.metric = p.metric;
           data.entries = p.entries;
+          if(p.c25k!==undefined) data.c25k = p.c25k;
+          if(p.events!==undefined) data.events = p.events;
+          if(p.next!==undefined) data.next = p.next;
           save(); render(true);
           toast('Restored ' + p.entries.length + (p.entries.length===1?' run':' runs'));
         } });
@@ -865,7 +1089,8 @@ function recapCopy(s){
 }
 function recapConfigured(){ return !!(data.ejKey && data.ejService && data.ejTemplate); }
 function backupPayload(){
-  return JSON.stringify({ v:12, target:data.target, metric:data.metric, entries:data.entries });
+  return JSON.stringify({ v:14, target:data.target, metric:data.metric,
+                          c25k:data.c25k, events:data.events, next:data.next, entries:data.entries });
 }
 function parseBackup(txt){
   if(!txt) return null;
@@ -880,9 +1105,20 @@ function parseBackup(txt){
     if(typeof e.t==='number' && e.t>0) r.t = e.t;
     return r;
   });
+  /* fields absent in older backups stay undefined so restore leaves this device's values alone */
+  var c25k;
+  if('c25k' in o) c25k = (o.c25k && typeof o.c25k.done==='number' && o.c25k.done>=0) ? { done: Math.min(27, o.c25k.done) } : null;
+  var events;
+  if('events' in o) events = Array.isArray(o.events) ? o.events.filter(function(x){
+      return x && typeof x.d==='number' && typeof x.name==='string';
+    }).map(function(x){
+      return { id: (x.id!=null ? String(x.id) : String(x.d)+Math.random().toString(36).slice(2,6)), name: String(x.name).slice(0,80), d: x.d };
+    }) : [];
+  var next;
+  if('next' in o) next = (typeof o.next==='number' && o.next>0) ? o.next : 0;
   return { target: (typeof o.target==='number' ? o.target : 0),
            metric: (o.metric==='pace'||o.metric==='time') ? o.metric : 'dist',
-           entries: entries };
+           entries: entries, c25k: c25k, events: events, next: next };
 }
 function recapBody(s){
   return recapCopy(s)
