@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B16 · sw.js CACHE `tread-v16` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B18 · sw.js CACHE `tread-v18` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -217,6 +217,14 @@ rect and `CHART_VBW=340`) and shows the nearest point's run in a popup — title
 Nearest-by-x makes the small dots forgiving to tap. `ask()` gained `hideCancel` for the
 single-button (Close) info popup. Handlers are conflict-free because `#metricBtn` lives in
 `.chartHead` and the plot is the sibling `#chart` svg.
+
+B18: dialog-centering fix. The global `*{margin:0}` reset was overriding the UA stylesheet's
+`dialog{margin:auto}`, so every modal `<dialog>` (change target, next run, event, restore,
+run-detail popup, etc.) collapsed into a screen corner and read as a raw block. Fixed by
+re-asserting `margin:auto` on the `dialog` rule (with `inset:0` on `:modal` this centres both
+axes); also added `max-height:90dvh; overflow-y:auto` so a tall dialog (restore textarea)
+stays on-screen. **Gotcha: a `*{margin:0}` reset silently breaks `<dialog>` centering — keep
+`margin:auto` on the dialog rule.**
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
