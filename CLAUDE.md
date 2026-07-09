@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B7 · sw.js CACHE `tread-v7` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B8 · sw.js CACHE `tread-v8` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -30,7 +30,7 @@ Judge every feature against that, not against "fitness app" convention.
 
 ## Data schema
 
-`localStorage['tread']` = `{ target: number, entries: [{ id: string, m: number /*miles*/, d: number /*epoch ms*/, t?: number /*duration in seconds, optional*/ }] }`
+`localStorage['tread']` = `{ target: number, metric?: 'dist'|'pace'|'time', entries: [{ id: string, m: number /*miles*/, d: number /*epoch ms*/, t?: number /*duration in seconds, optional*/ }] }`
 The run log renders sorted by `d` descending — dates are user-editable, so never rely on
 array insertion order for display.
 Everything else (totals, %, weekly count, longest, milestones) is derived — keep it
@@ -74,7 +74,7 @@ vertical strips every 8px, record `[x, firstY+1, lastY-1]`) or liquid volume wil
 Edit → bump `TREAD B<n>` + `tread-v<n>` → commit → push via GitHub Desktop → open the
 Pages URL, refresh twice, confirm footer shows the new build number.
 
-## Shipped in B3–B7 (so you don't rebuild them)
+## Shipped in B3–B8 (so you don't rebuild them)
 
 Milestone toasts on crossing 5/10/25/35/50/75/100/150/200/250/300/350/400 total miles;
 first-run and first single-run ≥3.1 mi ("full 5K") moments; new-longest-run toast;
@@ -98,6 +98,13 @@ B7: volume-conserving liquid. The old model held a fixed-height surface pivoting
 x=190, so at low fill a tilt could lift the plane off the toe puddle entirely (liquid
 vanished) or plunge it across the toe (flooded). Now fill % maps to **volume**, so the
 level follows the vessel shape — the narrow toe fills fast, the wide midfoot slower.
+
+B8: trend line chart between the add row and the run log (inline SVG, no libs). Plots
+runs only — never zero-filled rest days — connected in date order, last 30 runs, real
+time-scaled x-axis. Tapping anywhere on the chart cycles distance → pace → time
+(choice persisted as `metric`). **Pace axis is inverted (faster at the top)** so an
+upward line means progress in all three modes — keep it that way. Hidden until 2 runs
+exist; pace/time modes show a gentle empty note if no durations are logged.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 

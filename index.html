@@ -86,6 +86,18 @@
   }
   .chips button:active{background:var(--line)}
 
+  /* chart */
+  .chart{margin-top:26px}
+  .chartHead{display:flex; justify-content:space-between; align-items:center}
+  .metricBtn{font-size:12.5px; font-weight:700; padding:7px 12px; border-radius:999px;
+             background:var(--surface); border:1px solid var(--line)}
+  #chart{display:block; width:100%; height:auto; margin-top:8px; cursor:pointer; touch-action:manipulation}
+  #chart .cLine{fill:none; stroke:var(--ink); stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
+  #chart .cDot{fill:var(--volt); stroke:var(--ink); stroke-width:1.5}
+  #chart .cGrid{stroke:#cdd1c9; stroke-width:1}
+  #chart .cLbl{font-size:10.5px; fill:#8f948c}
+  #chart .cEmpty{font-size:12.5px; fill:#8f948c}
+
   /* log */
   .hist{margin-top:26px}
   #log{list-style:none; margin-top:4px}
@@ -186,6 +198,14 @@
     <button data-m="3.1">+5K</button><button data-m="6.2">+10K</button>
   </div>
 
+  <section class="chart" id="chartWrap" hidden>
+    <div class="chartHead">
+      <div class="eyebrow">Trend</div>
+      <button class="metricBtn" id="metricBtn">Distance mi</button>
+    </div>
+    <svg id="chart" viewBox="0 0 340 150" role="img" aria-label="Run trend. Tap to switch between distance, pace and time."></svg>
+  </section>
+
   <section class="hist">
     <div class="eyebrow">Run log</div>
     <ul id="log"></ul>
@@ -195,7 +215,7 @@
   <footer>
     <button class="linky" id="editTarget">Change target</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B7</div>
+    <div class="build">TREAD B8</div>
   </footer>
 </div>
 
@@ -220,6 +240,7 @@ function save(){ try{ localStorage.setItem('tread', JSON.stringify(data)); }catc
 var data = load() || { target:400, entries:[] };
 if(!(data.target>0)) data.target = 400;
 if(!Array.isArray(data.entries)) data.entries = [];
+if(data.metric!=='pace' && data.metric!=='time') data.metric = 'dist';
 
 var total = function(){ return data.entries.reduce(function(a,e){ return a+e.m; },0); };
 
@@ -268,6 +289,64 @@ function statusLabel(p){
   return 'Time for a new pair';
 }
 var fmtDate = new Intl.DateTimeFormat('en-GB',{weekday:'short', day:'numeric', month:'short'});
+var fmtDay = new Intl.DateTimeFormat('en-GB',{day:'numeric', month:'short'});
+
+/* ---------- trend chart ---------- */
+var METRICS = ['dist','pace','time'];
+var METRIC_LABEL = { dist:'Distance mi', pace:'Pace /mi \u00b7 faster \u2191', time:'Time' };
+function metricPoints(kind){
+  var pts = [];
+  data.entries.forEach(function(e){
+    if(kind==='dist') pts.push({ d:e.d, v:e.m });
+    else if(e.t) pts.push({ d:e.d, v: kind==='time' ? e.t : e.t/e.m });
+  });
+  pts.sort(function(a,b){ return a.d-b.d; });
+  return pts.slice(-30);
+}
+function renderChart(){
+  var wrap = $('chartWrap');
+  if(data.entries.length < 2){ wrap.hidden = true; return; }
+  wrap.hidden = false;
+  var kind = data.metric;
+  $('metricBtn').textContent = METRIC_LABEL[kind];
+  var W=340, H=150, ml=46, mr=10, mt=12, mb=22, out='';
+  var pts = metricPoints(kind);
+  if(!pts.length){
+    $('chart').innerHTML = '<text class="cEmpty" x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle">No times logged yet \u2014 add one to a run</text>';
+    return;
+  }
+  var minV=Infinity, maxV=-Infinity, minD=Infinity, maxD=-Infinity;
+  pts.forEach(function(p){
+    if(p.v<minV) minV=p.v; if(p.v>maxV) maxV=p.v;
+    if(p.d<minD) minD=p.d; if(p.d>maxD) maxD=p.d;
+  });
+  var lo=minV, hi=maxV;
+  if(lo===hi){ var fp = kind==='dist' ? 0.5 : 45; lo-=fp; hi+=fp; }
+  else { var pad=(hi-lo)*0.14; lo-=pad; hi+=pad; }
+  if(minD===maxD){ minD-=43200000; maxD+=43200000; }
+  var inv = (kind==='pace');
+  function X(dd){ return ml + (dd-minD)/(maxD-minD)*(W-ml-mr); }
+  function Y(v){ var f=(v-lo)/(hi-lo); if(!inv) f=1-f; return mt + f*(H-mt-mb); }
+  function lbl(v){ return kind==='dist' ? ''+(Math.round(v*10)/10) : fmtTime(Math.max(1, Math.round(v))); }
+  var ticks = (minV===maxV) ? [minV] : [minV, (minV+maxV)/2, maxV];
+  ticks.forEach(function(t){
+    var y = Y(t).toFixed(1);
+    out += '<line class="cGrid" x1="'+ml+'" y1="'+y+'" x2="'+(W-mr)+'" y2="'+y+'"/>';
+    out += '<text class="cLbl" x="'+(ml-6)+'" y="'+(+y+3.5)+'" text-anchor="end">'+lbl(t)+'</text>';
+  });
+  out += '<text class="cLbl" x="'+ml+'" y="'+(H-6)+'" text-anchor="start">'+fmtDay.format(new Date(minD===maxD?pts[0].d:minD))+'</text>';
+  if(maxD-minD > 43200001)
+    out += '<text class="cLbl" x="'+(W-mr)+'" y="'+(H-6)+'" text-anchor="end">'+fmtDay.format(new Date(maxD))+'</text>';
+  if(pts.length>1){
+    var dd='';
+    pts.forEach(function(p,i){ dd += (i?' L ':'M ')+X(p.d).toFixed(1)+' '+Y(p.v).toFixed(1); });
+    out += '<path class="cLine" d="'+dd+'"/>';
+  }
+  pts.forEach(function(p){
+    out += '<circle class="cDot" cx="'+X(p.d).toFixed(1)+'" cy="'+Y(p.v).toFixed(1)+'" r="3.5"/>';
+  });
+  $('chart').innerHTML = out;
+}
 
 /* ---------- render ---------- */
 var fillTarget = 0;
@@ -305,6 +384,7 @@ function render(splash){
                    '<button class="del" data-del="'+e.id+'" aria-label="Delete entry">&times;</button>';
     log.appendChild(li);
   });
+  renderChart();
 }
 
 /* ---------- moments ---------- */
@@ -371,6 +451,11 @@ document.querySelector('.chips').addEventListener('click', function(e){
   if(b) addMiles(parseFloat(b.dataset.m));
 });
 function byId(id){ for(var i=0;i<data.entries.length;i++) if(data.entries[i].id===id) return data.entries[i]; }
+$('chartWrap').addEventListener('click', function(){
+  data.metric = METRICS[(METRICS.indexOf(data.metric)+1)%METRICS.length];
+  save(); renderChart();
+});
+
 $('log').addEventListener('click', function(e){
   var b = e.target.closest('button[data-del]');
   if(b){
