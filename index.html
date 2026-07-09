@@ -80,12 +80,9 @@
     box-shadow:0 2px 0 #9dbf0f;
   }
   #addBtn:active{transform:translateY(1px); box-shadow:0 1px 0 #9dbf0f}
-  .chips{display:flex; gap:8px; margin-top:10px}
-  .chips button{
-    font-size:13.5px; font-weight:700; padding:8px 14px; border-radius:999px;
-    border:1.5px solid var(--line); background:var(--surface); color:var(--ink);
-  }
-  .chips button:active{background:var(--line)}
+  .addrow + .addrow{margin-top:10px}
+  .distpair{flex:1; display:flex; align-items:center; gap:10px; min-width:0}
+  .slash{color:var(--muted); font-weight:800; font-size:18px; flex:none}
 
   /* chart */
   .chart{margin-top:26px}
@@ -120,6 +117,11 @@
   .pbar{height:8px; background:var(--bg2); border-radius:999px; margin-top:8px; overflow:hidden}
   .pbarFill{height:100%; width:0; background:var(--volt); border-radius:999px; transition:width .5s ease}
   .c25kSub{font-size:12.5px; color:var(--muted); margin-top:6px}
+  .c25kNextRow{display:flex; align-items:center; justify-content:space-between; gap:10px;
+               margin-top:12px; padding-top:12px; border-top:1px solid var(--line)}
+  .c25kWhen{font-size:14px; font-weight:800; color:var(--ink); text-align:left; min-width:0;
+            text-decoration:underline dotted; text-decoration-color:#b8bdb4; text-underline-offset:3px}
+  .c25kWhen.unset{font-weight:700; color:var(--muted); text-decoration:none}
   #nextCard{display:flex; align-items:center; justify-content:space-between; gap:10px}
   .nextMain{display:flex; flex-direction:column; gap:2px; min-width:0}
   .nextWhen{font-size:18px; font-weight:900; font-style:italic; color:var(--ink); text-align:left;
@@ -257,6 +259,13 @@
       <div class="c25kNow" id="c25kNow">Week 1 &middot; run 1 of 3</div>
       <div class="pbar"><div class="pbarFill" id="c25kBar"></div></div>
       <div class="c25kSub" id="c25kSub">0 of 27 runs</div>
+      <div class="c25kNextRow" id="c25kNextRow">
+        <button class="c25kWhen" id="c25kWhen" aria-label="Plan your next C25K run">+ Plan next run</button>
+        <div class="nextActions">
+          <button class="bump" id="c25kBump" aria-label="Move to the next day" hidden>+1 day</button>
+          <button class="tick" id="c25kDone" aria-label="Tick off this C25K run">&check;</button>
+        </div>
+      </div>
     </div>
 
     <div class="card next" id="nextCard" hidden>
@@ -283,14 +292,16 @@
     <button class="planAdd" id="eventAdd2" hidden>+ Add a race or event</button>
   </section>
 
+  <div class="addrow" id="addRow">
+    <div class="distpair">
+      <input id="miles" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="Miles" aria-label="Miles run">
+      <span class="slash">/</span>
+      <input id="km" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="Km" aria-label="Kilometres run">
+    </div>
+  </div>
   <div class="addrow">
-    <input id="miles" type="number" inputmode="decimal" step="0.1" min="0.1" placeholder="Miles" aria-label="Miles run">
     <input id="mins" type="text" inputmode="decimal" placeholder="mm:ss" aria-label="Time to complete (optional)">
     <button id="addBtn">Add run</button>
-  </div>
-  <div class="chips" role="group" aria-label="Quick add">
-    <button data-m="1">+1</button><button data-m="2">+2</button>
-    <button data-m="3.1">+5K</button><button data-m="6.2">+10K</button>
   </div>
 
   <section class="chart" id="chartWrap" hidden>
@@ -324,7 +335,7 @@
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B18</div>
+    <div class="build">TREAD B19</div>
   </footer>
 </div>
 
@@ -363,6 +374,7 @@ if(!Array.isArray(data.events)) data.events = [];
 data.events = data.events.filter(function(x){ return x && typeof x.d==='number' && typeof x.name==='string'; });
 if(!(data.next>0)) data.next = 0;
 if(typeof data.nextLabel!=='string') data.nextLabel = '';
+if(!(data.c25kNext>0)) data.c25kNext = 0;
 
 var total = function(){ return data.entries.reduce(function(a,e){ return a+e.m; },0); };
 
@@ -562,19 +574,32 @@ function renderRhythm(){
 
 /* ---------- plan cards: C25K programme · next-run cue · events ---------- */
 function renderC25K(){
-  var card=$('c25kCard');
+  var card=$('c25kCard'), row=$('c25kNextRow');
   if(!data.c25k){ card.hidden=true; return; }
   card.hidden=false;
-  var done=data.c25k.done;
-  if(done>=27){
+  var done=data.c25k.done, graduated=done>=27;
+  if(graduated){
     $('c25kNow').textContent='Graduated 🎓';
     $('c25kBar').style.width='100%';
     $('c25kSub').textContent='27 of 27 runs — you can run 5K';
+    row.hidden=true;   /* nothing left to tick off */
   } else {
     var pos=c25kPos(done);
     $('c25kNow').textContent='Week '+pos.week+' · run '+pos.run+' of 3';
     $('c25kBar').style.width=(done/27*100).toFixed(1)+'%';
     $('c25kSub').textContent=done+' of 27 runs';
+    row.hidden=false;
+    var when=$('c25kWhen'), bump=$('c25kBump');
+    if(data.c25kNext>0){
+      var lab=dayLabel(data.c25kNext);
+      when.textContent='Next: '+lab.charAt(0).toUpperCase()+lab.slice(1);
+      when.classList.remove('unset');
+      bump.hidden=false;
+    } else {
+      when.textContent='+ Plan next run';
+      when.classList.add('unset');
+      bump.hidden=true;
+    }
   }
 }
 function renderNext(){
@@ -688,7 +713,36 @@ $('nextDone').addEventListener('click', function(){
   var r=this.getBoundingClientRect();
   confetti(r.left+r.width/2, r.top+r.height/2);
   data.next=0; data.nextLabel=''; save(); render(false);
-  toast('Run done — nice one');
+  goLogRun();   /* bunt down to log the run */
+});
+/* ---- C25K next-run cue (its own planned day + tick; ticking advances the programme) ---- */
+function openC25KNext(){
+  var base=data.c25kNext>0?data.c25kNext:(todayMid()+DAY);
+  ask({ title:'Next C25K run', text:'The day you plan your next Couch to 5K session. Tick it off when it’s done and the programme moves on. Leave the day blank to clear it.',
+        input:true, type:'date', value:isoOf(base), min:isoOf(todayMid()), max:isoOf(todayMid()+400*DAY),
+        onOk:function(datev){
+          datev=(''+datev).trim();
+          if(!datev){ data.c25kNext=0; save(); render(false); return; }
+          var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(datev); if(!m) return;
+          var nd=new Date(+m[1],+m[2]-1,+m[3]); nd.setHours(0,0,0,0);
+          if(isNaN(nd.getTime())) return;
+          data.c25kNext=nd.getTime(); save(); render(false);
+        } });
+}
+$('c25kWhen').addEventListener('click', openC25KNext);
+$('c25kBump').addEventListener('click', function(){
+  data.c25kNext=Math.max(data.c25kNext+DAY, todayMid()); save(); render(false);
+});
+$('c25kDone').addEventListener('click', function(){
+  if(!data.c25k || data.c25k.done>=27) return;
+  var r=this.getBoundingClientRect();
+  confetti(r.left+r.width/2, r.top+r.height/2);
+  data.c25k.done++;
+  data.c25kNext=0;                       /* this planned session is done */
+  var graduated = data.c25k.done>=27;
+  save(); render(false);
+  if(graduated) toast('Week 9, run 3 — you just graduated Couch to 5K! 🎓');
+  goLogRun();   /* bunt down to log the miles/time */
 });
 $('eventAdd').addEventListener('click', function(){ openEvent(null); });
 $('eventAdd2').addEventListener('click', function(){ openEvent(null); });
@@ -815,11 +869,7 @@ function addMiles(m, tSec){
   var entry = { id: Date.now()+Math.random().toString(16).slice(2), m:m, d:Date.now() };
   if(tSec) entry.t = tSec;
   data.entries.push(entry);
-  var graduated = false;
-  if(data.c25k && data.c25k.done < 27){
-    data.c25k.done++;
-    if(data.c25k.done >= 27) graduated = true;
-  }
+  /* C25K advances only via its own tick (a logged run may not be the C25K session) */
   if(data.next && midnight(data.next) <= todayMid()){ data.next = 0; data.nextLabel = ''; }  /* fulfilled \u2014 clear the cue */
   save(); render(true);
   var post = pre + m, msg = null, i;
@@ -828,7 +878,6 @@ function addMiles(m, tSec){
   if(wasEmpty) msg = 'Run one logged \u2014 welcome to the club';
   else if(m >= 3.1 && !had5k) msg = 'A full 5K in one go \u2014 that\u2019s the whole point of C25K';
   else if(!msg && m > prevMax) msg = 'New longest run \u2014 '+m.toFixed(1)+' mi';
-  if(graduated) msg = 'Week 9, run 3 \u2014 you just graduated Couch to 5K! \ud83c\udf93';
   if(msg){ toast(msg); S.amp = 15; }
 }
 $('addBtn').addEventListener('click', function(){
@@ -840,17 +889,26 @@ $('addBtn').addEventListener('click', function(){
   }
   if(v>0){
     addMiles(v, ts);
-    $('miles').value=''; $('mins').value=''; $('mins').classList.remove('bad');
-    $('miles').blur(); $('mins').blur();
+    $('miles').value=''; $('km').value=''; $('mins').value=''; $('mins').classList.remove('bad');
+    $('miles').blur(); $('km').blur(); $('mins').blur();
   }
 });
+/* dual distance inputs: type in miles OR km and the other fills in (setting .value fires no
+   'input' event, so no feedback loop). Miles is the stored value; km is a convenience view. */
+var KM_PER_MI = 1.60934;
+$('miles').addEventListener('input', function(){
+  var v=parseFloat(this.value); $('km').value = (v>0) ? (v*KM_PER_MI).toFixed(2) : '';
+});
+$('km').addEventListener('input', function(){
+  var v=parseFloat(this.value); $('miles').value = (v>0) ? (v/KM_PER_MI).toFixed(1) : '';
+});
 $('miles').addEventListener('keydown', function(e){ if(e.key==='Enter') $('addBtn').click(); });
+$('km').addEventListener('keydown', function(e){ if(e.key==='Enter') $('addBtn').click(); });
 $('mins').addEventListener('keydown', function(e){ if(e.key==='Enter') $('addBtn').click(); });
 $('mins').addEventListener('input', function(){ $('mins').classList.remove('bad'); });
-document.querySelector('.chips').addEventListener('click', function(e){
-  var b = e.target.closest('button[data-m]');
-  if(b) addMiles(parseFloat(b.dataset.m));
-});
+/* after ticking a run done, bunt the user to the add-run box to log it (focus opens the
+   keyboard because we stay inside the click gesture — no async before focus) */
+function goLogRun(){ try{ $('miles').focus(); }catch(e){} }
 function byId(id){ for(var i=0;i<data.entries.length;i++) if(data.entries[i].id===id) return data.entries[i]; }
 $('metricBtn').addEventListener('click', function(){
   data.metric = METRICS[(METRICS.indexOf(data.metric)+1)%METRICS.length];
@@ -994,6 +1052,7 @@ $('restore').addEventListener('click', function(){
           if(p.events!==undefined) data.events = p.events;
           if(p.next!==undefined) data.next = p.next;
           if(p.nextLabel!==undefined) data.nextLabel = p.nextLabel;
+          if(p.c25kNext!==undefined) data.c25kNext = p.c25kNext;
           save(); render(true);
           toast('Restored ' + p.entries.length + (p.entries.length===1?' run':' runs'));
         } });
@@ -1177,8 +1236,9 @@ function recapCopy(s){
 }
 function recapConfigured(){ return !!(data.ejKey && data.ejService && data.ejTemplate); }
 function backupPayload(){
-  return JSON.stringify({ v:16, target:data.target, metric:data.metric,
-                          c25k:data.c25k, events:data.events, next:data.next, nextLabel:data.nextLabel, entries:data.entries });
+  return JSON.stringify({ v:19, target:data.target, metric:data.metric,
+                          c25k:data.c25k, events:data.events, next:data.next, nextLabel:data.nextLabel,
+                          c25kNext:data.c25kNext, entries:data.entries });
 }
 function parseBackup(txt){
   if(!txt) return null;
@@ -1208,9 +1268,11 @@ function parseBackup(txt){
   if('next' in o) next = (typeof o.next==='number' && o.next>0) ? o.next : 0;
   var nextLabel;
   if('nextLabel' in o) nextLabel = (typeof o.nextLabel==='string') ? o.nextLabel.slice(0,60) : '';
+  var c25kNext;
+  if('c25kNext' in o) c25kNext = (typeof o.c25kNext==='number' && o.c25kNext>0) ? o.c25kNext : 0;
   return { target: (typeof o.target==='number' ? o.target : 0),
            metric: (o.metric==='pace'||o.metric==='time') ? o.metric : 'dist',
-           entries: entries, c25k: c25k, events: events, next: next, nextLabel: nextLabel };
+           entries: entries, c25k: c25k, events: events, next: next, nextLabel: nextLabel, c25kNext: c25kNext };
 }
 function recapBody(s){
   return recapCopy(s)

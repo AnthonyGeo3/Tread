@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B18 · sw.js CACHE `tread-v18` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B19 · sw.js CACHE `tread-v19` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -34,9 +34,10 @@ Judge every feature against that, not against "fitness app" convention.
 Plus (B11–B14): `ejKey/ejService/ejTemplate` (EmailJS recap creds), `recapLast` (ms of last
 recap send), `c25k` (`{done:0–27}` or `null` = programme off), `events` (`[{id, name, d /*epoch ms*/}]`),
 `next` (epoch ms midnight of the single planned next run, or 0) + `nextLabel` (optional text
-for that run, B16). Events also carry optional `m` (target distance in miles, B15). All have
-defensive defaults at the top of the script; `c25k`, `events` (incl. `m`), `next`, `nextLabel`
-are carried in the backup payload (v16).
+for that run, B16), `c25kNext` (epoch ms midnight of the planned next *C25K* run, or 0, B19).
+Events also carry optional `m` (target distance in miles, B15). All have defensive defaults at
+the top of the script; `c25k`, `events` (incl. `m`), `next`, `nextLabel`, `c25kNext` are carried
+in the backup payload (v19).
 The run log renders sorted by `d` descending — dates are user-editable, so never rely on
 array insertion order for display.
 Everything else (totals, %, weekly count, longest, milestones) is derived — keep it
@@ -177,11 +178,9 @@ only when relevant (a global `[hidden]{display:none!important}` reset was added 
 - **C25K programme card** (`#c25kCard`, opt-in via footer `C25K` link or its `Adjust` button
   → `openC25K`). Stores `data.c25k = {done:0–27}` (27 sessions = 9 weeks × 3). Displays the
   **next** run to do — `c25kPos(done)` → "Week X · run Y of 3" — a volt progress bar, and
-  "N of 27 runs". **Logging a run auto-advances `done`** (`addMiles`); reaching 27 fires a
-  graduation toast ("…you just graduated Couch to 5K! 🎓", overrides milestone/longest copy)
-  and the card switches to a "Graduated 🎓" state. Position is adjustable (the dialog sets
-  the next week/run; blank week turns the card off) in case auto-advance drifts from a
-  non-programme run. Advance is capped at 27.
+  "N of 27 runs". Reaching 27 → "Graduated 🎓". Position is adjustable (`openC25K`: set next
+  week/run; blank week turns the card off). Advance is capped at 27. **(B19 changed how it
+  advances — see below: no longer auto-advances on logging; it has its own tick.)**
 - **Next-run cue** (`#nextCard`): a **single** planned day, `data.next` (midnight ms) or a
   `#nextPlan` ghost prompt when unset (shown once ≥1 run). Deliberately one-at-a-time so
   missed runs never pile into a guilt mountain. `dayLabel` shows Today/Tomorrow/weekday/
@@ -225,6 +224,27 @@ re-asserting `margin:auto` on the `dialog` rule (with `inset:0` on `:modal` this
 axes); also added `max-height:90dvh; overflow-y:auto` so a tall dialog (restore textarea)
 stays on-screen. **Gotcha: a `*{margin:0}` reset silently breaks `<dialog>` centering — keep
 `margin:auto` on the dialog rule.**
+
+B19: C25K↔next-run decoupling, one-click advance, and a dual distance input.
+- **C25K no longer auto-advances on logging.** `addMiles` used to `done++` on every run,
+  which mis-counted non-programme runs (a random jog). Now the C25K card has its **own**
+  next-run cue inside the box: a planned day `data.c25kNext` (+ `openC25KNext` picker, `+1 day`
+  bump via `#c25kBump`) and a **green tick** `#c25kDone`. Ticking is the *only* thing that
+  advances the programme — `done++` (cap 27, graduation toast), clears `c25kNext`, confetti,
+  then `goLogRun()`. This is the one-click "I did my C25K run" (was 5 clicks via Adjust).
+- **Two next-run cues now exist**, intentionally: the general `#nextCard` (any run, has a label,
+  its tick never touches C25K) and the C25K one (advances C25K). So a C25K-only user can leave
+  the general cue blank and still see "next C25K run: tomorrow".
+- **Every green tick bunts to logging**: `goLogRun()` = `$('miles').focus()` called *synchronously*
+  inside the click handler (no async before focus, so iOS actually opens the keyboard). It both
+  scrolls the add box into view and lets the user log the run's miles/time. Ticking never logs a
+  run itself — the user still enters miles/time, and since logging no longer advances C25K there's
+  no double-count.
+- **Add-run redesigned**: removed the `+1/+2/+5K/+10K` quick-add chips. The distance box is now a
+  `.distpair` of **miles / km** (`#miles` `/` `#km`); typing in one fills the other (miles = km ÷
+  1.60934 shown 1dp, km = miles × 1.60934 shown 2dp). Setting `.value` fires no `input` event so
+  there's no feedback loop. `#miles` stays the stored value; km is a convenience view. Time + Add
+  moved to a second `.addrow`.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
