@@ -98,6 +98,15 @@
   #chart .cLbl{font-size:10.5px; fill:#8f948c}
   #chart .cEmpty{font-size:12.5px; fill:#8f948c}
 
+  /* weekly rhythm */
+  .rhythm{margin-top:26px}
+  .rhythmHead{display:flex; justify-content:space-between; align-items:baseline}
+  .rhythmNote{font-size:12.5px; font-weight:700; color:var(--muted); font-variant-numeric:tabular-nums}
+  #rhythm{display:block; width:100%; height:auto; margin-top:8px}
+  #rhythm .rTrack{fill:#e2e5dd}
+  #rhythm .rTrack.rNow{stroke:var(--muted); stroke-width:1.3}
+  #rhythm .rBar{fill:var(--volt)}
+
   /* log */
   .hist{margin-top:26px}
   .histHead{display:flex; justify-content:space-between; align-items:center}
@@ -216,6 +225,14 @@
     <svg id="chart" viewBox="0 0 340 150" role="img" aria-label="Run trend. Tap to switch between distance, pace and time."></svg>
   </section>
 
+  <section class="rhythm" id="rhythmWrap" hidden>
+    <div class="rhythmHead">
+      <div class="eyebrow">Weekly rhythm</div>
+      <div class="rhythmNote" id="rhythmNote"></div>
+    </div>
+    <svg id="rhythm" viewBox="0 0 340 56" role="img" aria-label="Runs per week over the last 8 weeks"></svg>
+  </section>
+
   <section class="hist">
     <div class="histHead">
       <div class="eyebrow">Run log</div>
@@ -230,7 +247,7 @@
     <button class="linky" id="editRecap">Weekly recap</button>&middot;
     <button class="linky" id="restore">Restore</button>&middot;
     <button class="linky" id="reset">New pair</button>
-    <div class="build">TREAD B12</div>
+    <div class="build">TREAD B13</div>
   </footer>
 </div>
 
@@ -390,6 +407,46 @@ function renderChart(){
   $('chart').innerHTML = out;
 }
 
+/* ---------- weekly rhythm strip (last 8 Monday-weeks, runs per week) ---------- */
+function weekStartMs(offset){
+  var d = new Date(); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - ((d.getDay()+6)%7) - offset*7);
+  return d.getTime();
+}
+function rhythmWeeks(){
+  var wk = [];
+  for(var o=7;o>=0;o--){
+    var s = weekStartMs(o), e = s + 7*86400000;
+    var c = data.entries.filter(function(x){ return x.d>=s && x.d<e; }).length;
+    wk.push({ start:s, count:c, current:(o===0) });
+  }
+  return wk;
+}
+function renderRhythm(){
+  var wrap = $('rhythmWrap');
+  if(data.entries.length < 2){ wrap.hidden = true; return; }
+  var weeks = rhythmWeeks();
+  var active = weeks.filter(function(x){ return x.count>0; }).length;
+  if(active===0){ wrap.hidden = true; return; }  /* nothing in the last 8 weeks — stay quiet */
+  wrap.hidden = false;
+  var maxC = weeks.reduce(function(a,x){ return Math.max(a,x.count); }, 1);
+  $('rhythmNote').textContent = active + ' of 8 weeks';
+  var W=340, n=8, gap=8, top=6, bot=6, fullH=56-top-bot, out='';
+  var bw = (W - gap*(n-1))/n;
+  weeks.forEach(function(wk, i){
+    var x = i*(bw+gap), lbl = fmtDay.format(new Date(wk.start));
+    var title = wk.count===0 ? ('Week of '+lbl+' — rest week')
+                             : ('Week of '+lbl+' — '+wk.count+(wk.count===1?' run':' runs'));
+    out += '<rect class="rTrack'+(wk.current?' rNow':'')+'" x="'+x.toFixed(1)+'" y="'+top+'" width="'+bw.toFixed(1)+'" height="'+fullH+'" rx="4"><title>'+title+'</title></rect>';
+    if(wk.count>0){
+      var h = Math.max(5, (wk.count/maxC)*fullH), y = top + (fullH - h);
+      out += '<rect class="rBar" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="4" pointer-events="none"/>';
+    }
+  });
+  $('rhythm').innerHTML = out;
+  $('rhythm').setAttribute('aria-label', 'Runs per week over the last 8 weeks. You ran in '+active+' of them.');
+}
+
 /* ---------- run-log sort (session-only; resets to date order on load) ---------- */
 var LOG_SORTS = ['date','dist','time','pace'];
 var LOG_LABEL = { date:'Newest', dist:'Longest', time:'Longest time', pace:'Fastest' };
@@ -442,6 +499,7 @@ function render(splash){
     log.appendChild(li);
   });
   renderChart();
+  renderRhythm();
 }
 
 /* ---------- moments ---------- */

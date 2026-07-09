@@ -7,7 +7,7 @@ glass. The real product goal is **habit retention**: Anthony is mid-Couch-to-5K 
 this app exists to make running feel satisfying so he doesn't drop the hobby.
 Judge every feature against that, not against "fitness app" convention.
 
-**Current build: B12 · sw.js CACHE `tread-v12` · deployed on GitHub Pages (user AnthonyGeo3)**
+**Current build: B13 · sw.js CACHE `tread-v13` · deployed on GitHub Pages (user AnthonyGeo3)**
 
 ## Hard rules (house style — do not violate)
 
@@ -153,6 +153,17 @@ first `{` to the last `}` so the user can paste the **whole email** (preamble, e
 (danger-styled, confirmed) but leaves `ejKey/ejService/ejTemplate/recapLast` untouched, so
 recovering onto a configured device doesn't wipe its email setup.
 
+B13: weekly rhythm strip (`#rhythmWrap`, inline SVG `#rhythm`, no libs) between the trend
+chart and the run log. Shows the **last 8 Monday-weeks** as bars = runs per week
+(`rhythmWeeks` reuses the same `(getDay()+6)%7` Monday boundary as the "this week" stat).
+Each week draws a faint full-height ghost **track**; a volt `rBar` fills to
+`count/maxCount` of the height (min 5px so a 1-run week is visible). Rest weeks show just
+the empty track — **no red, no shame** (anti-goals); their hover `<title>` reads "rest
+week", not "0 runs". The current week's track gets a muted outline (`.rNow`) to mark
+in-progress. Header note is factual: "N of 8 weeks". Hidden until 2+ runs **and** at least
+one run in the last 8 weeks — if the user has lapsed (nothing in 8 weeks) the strip stays
+hidden rather than showing a wall of empty slots (the welcome-back toast covers that case).
+
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
 1. **Export / import backup — shipped in B11–B12.** Delivered as the weekly recap email
@@ -164,9 +175,9 @@ recovering onto a configured device doesn't wipe its email setup.
    an offset, not a start date). Show "Week 6 · run 2 of 3", tick runs off as they're
    logged, big celebration at W9R3 graduation. Completion structure is the strongest
    novice motivator there is.
-3. **Weekly rhythm strip (S)** — last 8 weeks as tiny bars (runs per week) above the run
-   log, plain inline SVG. At C25K stage consistency matters more than distance; this
-   makes "don't break the rhythm" visible without shaming a single missed week.
+3. **Weekly rhythm strip — shipped in B13.** Last 8 Monday-weeks as bars (runs per week)
+   between the trend chart and the run log; rest weeks are quiet empty slots, never red.
+   Hidden when lapsed (nothing in 8 weeks). See the B13 note above.
 4. **Manifest shortcuts (S)** — `shortcuts` in the manifest, e.g. "Log a 5K" →
    `./?add=3.1`; handle the query param once on load then strip it. One-tap logging
    from a long-press on the home-screen icon removes the last bit of friction.
