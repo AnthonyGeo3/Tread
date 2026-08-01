@@ -47,78 +47,74 @@ Two existing CLAUDE.md positions are consciously amended by this plan:
 
 | | Route | Verdict |
 |---|---|---|
-| A | **Official Garmin Connect Developer API** (Activity API now; Health API for wellness later). Free, but gated behind a developer-program application. Push-webhook delivery, OAuth, needs a server endpoint. Native — no extra accounts — and the only route that can ever carry wellness data (body battery, training readiness). | **✅ Chosen.** Anthony applies immediately; the build order below means approval never blocks the build. |
-| B | **Strava bridge.** Garmin→Strava auto-sync plus Strava's self-service API — instant, no gatekeepers. But it adds a third-party account Anthony doesn't have or want, an extra sync hop that can silently detach, and it can never carry wellness data. | **Fallback only.** Wired only if the Garmin application is rejected or stalls past patience (see Risks §8). |
+| A | **Official Garmin Connect Developer API.** Native, richest, wellness-capable. | **Rejected — business-gated.** The developer-program application is explicitly for companies; Anthony checked the form and confirmed. Not worth misrepresenting a hobby app to sneak through. Revisit only if Garmin ever opens individual access. |
+| B | **Strava as a pipe.** Garmin→Strava auto-sync is built-in, phone-side and near-instant; Strava's API is self-service (an app in minutes). Run summaries carry distance, moving time, avg/max HR, cadence, elevation — everything B20–B22 shows. | **✅ Chosen for run ingest.** Framed honestly: Strava here is *transport plumbing*, not a platform — free account, every activity default-private, zero social use, set up once and never opened again. |
 | C | Manual `.fit` share into the PWA (Web Share Target + inline FIT parser). | Rejected — no backend, but *manual*, which defeats the entire point. |
-| D | Unofficial Garmin login scraping from a Worker. | Rejected — fragile, credential-holding, ToS-grey, and Garmin's bot protection is hostile to datacenter IPs like a Worker's. |
+| D | Unofficial Garmin login from the Worker itself. | Rejected — credential-holding in the cloud, and Garmin's bot protection is hostile to datacenter IPs like a Worker's. |
+| E | **GarminDB / `garth` PC relay** (the Reddit recommendation). `garth` performs Garmin's own app-style login (unofficial); GarminDB batch-downloads FIT + wellness into local SQLite. A scheduled PC script could push runs to the bridge. | **Rejected for run ingest** — it only runs while the PC is awake, so runs land hours-to-a-day late, which kills the arrival ritual (§3); unofficial auth adds fragility. **Earmarked for the wellness side-channel** (§5), where daily latency is exactly fine. GarminDB is also worth running occasionally as a *personal archive* of FIT history — good instinct, just not Tread's pipeline. |
 
-*Why A over B (this reverses an earlier draft):* the only argument for Strava was
-friction avoidance. Anthony's call — the watch **was** the investment in native data; a
-relay account he doesn't use is a real ongoing cost (login, privacy surface, silent
-detach risk), while the application form is a one-time cost that the build order fully
-absorbs. And route A is the only one with product legs: the Health API's wellness scope
-is the raw material for the readiness-aware kind nudges parked in §5.
+*The principle that settles it — match each source to the latency its feature needs.*
+The arrival ritual needs **minutes**, and with the official API closed to individuals,
+only the phone-side Garmin→Strava hop delivers minutes. Wellness nudges (parked, §5)
+need only **"this morning"**, which a small daily `garth` job on Anthony's PC can serve
+natively — so the watch's deep data still pays off later without Strava ever carrying it.
 
 **On the FIT-file assumption:** we still do *not* need FIT parsing or per-second streams.
-Garmin's activity **summaries** (distance, duration, avg/max HR, cadence, elevation)
-carry every insight this plan shows; FIT download exists on this API if ever wanted, but
-nothing in B20–B22 uses it.
+Strava's run **summaries** carry every insight this plan shows. Nothing in B20–B22 needs
+more.
 
 ### Chosen shape
 
 ```
-Forerunner 970 ──auto──▶ Garmin Connect ──push webhook──▶ tread-bridge (CF Worker + KV)
-                                                             │ (+ daily backfill poll,
-                                                             │    reconciliation)
-                                                             │ GET /runs?since=… (Bearer)
-                                                       Tread PWA (fetch on open;
-                                                              offline-first)
+Forerunner 970 ──auto──▶ Garmin Connect ──auto (phone)──▶ Strava (private, unused)
+                                                            │ (poll, cron ~15 min)
+                                                     tread-bridge (CF Worker + KV)
+                                                            │ GET /runs?since=… (Bearer)
+                                                      Tread PWA (fetch on open;
+                                                             offline-first)
+        [parked, §5]  PC (daily garth job) ──wellness snapshot──▶ tread-bridge
 ```
 
-- **Push, with a reconciliation net.** Garmin's delivery model is push: when the watch
-  syncs, Connect POSTs activity summaries to a registered webhook URL. The Worker
-  receives, normalizes, upserts into KV. Keep a low-frequency backfill pull (daily cron)
-  so a missed ping can never lose a run. Latency is effectively "by the time he opens
-  Tread", which is all the arrival ritual needs.
+- **Polling, not webhooks, in v1.** A ~15-minute cron poll of "latest N activities" is
+  ~96 requests/day (far inside Strava's limits for one user), has no subscription
+  choreography, and self-heals missed events. Latency is minutes — all the arrival
+  ritual needs, since the payoff moment is *the next time he opens Tread*. Webhooks are
+  a v1.1 upgrade only if latency ever annoys.
 - **The ingest side is an adapter.** The client's only contract is `GET /runs` plus the
-  normalized shape below; whether runs arrive via Garmin webhook or (fallback) Strava
-  polling is invisible to the PWA. If the fallback is ever wired, only the Worker changes.
+  normalized shape below. The parked wellness side-channel (§5) would be a second,
+  independent ingest path into the same KV — its failure or absence never touches runs.
 - **House style extends to the Worker**: one plain-JS file, `bridge/worker.js`, no npm, no
   build step, deployable by pasting into the Cloudflare dashboard. `bridge/` is **not** a
   Pages-deployable file — Opus: amend the CLAUDE.md hard rule to say the *Pages* deploy
   set is exactly the five files, and that `bridge/worker.js` deploys separately to
   Cloudflare.
 
-### Build order (approval must never block the build)
+### Build order (fixtures first)
 
 Everything the client needs — B20 merge logic and settings, the B21 arrival ritual, the
 B22 insight — is built and verified against the bridge's `?demo=1` fixtures, which need
-no credentials at all. **The live ingest adapter is the last piece to land.** So Opus
-starts immediately; Anthony's Garmin developer application runs in parallel; when
-approval arrives, the Garmin adapter is wired in and history backfilled. If the
-application is rejected or stalls past Anthony's patience (guide: ~3 weeks), the Strava
-fallback adapter is wired instead — same contract, no client changes. Manual logging
-works throughout, so nothing is ever broken while waiting.
+no credentials at all. The live Strava adapter is wired last, once the client work is
+proven. Manual logging works throughout, so nothing is ever broken mid-build.
 
 ### Data contract (the only coupling between Worker and client)
 
 Normalized run, as stored in KV and returned by the bridge:
 
 ```json
-{ "gid": "garmin-14963210055", "src": "garmin",
+{ "gid": "strava-14963210055", "src": "strava",
   "d": 1756725600000,        // epoch ms, activity start
   "m": 2.3,                  // miles, 1dp
-  "t": 1462,                 // moving duration, seconds
+  "t": 1462,                 // moving time, seconds
   "hr": 156, "hrx": 172,     // avg / max heart rate, bpm (optional)
-  "cad": 164,                // avg cadence, steps/min (optional — verify units at build)
+  "cad": 164,                // avg cadence, steps/min (optional — see units note below)
   "el": 118,                 // elevation gain, feet (optional)
-  "name": "Morning Run"      // activity title (optional)
+  "name": "Morning Run",     // activity title (optional)
+  "gear": "g12345678"        // Strava gear id (optional — stored now, used later, #7)
 }
 ```
 
-(`src` is `'garmin'` — or `'strava'` if the fallback adapter is ever wired; the client
-treats them identically. A `gear` field may be added if the Activity API exposes gear —
-verify at build; if it doesn't, drop it and revisit alongside backlog #7 shoe shelf.)
+(`src` stays in the shape so a future native source — or the wellness side-channel —
+can coexist; the client treats all sources identically.)
 
 Bridge endpoints (all JSON):
 
@@ -127,27 +123,24 @@ Bridge endpoints (all JSON):
 - `GET /runs?demo=1` — no auth, returns a small hardcoded fixture set. Exists so the
   client can be built and verified in preview without live credentials — it is the
   backbone of the build order above. Keep it.
-- `GET /health` — unauthenticated `{ok, lastPing, tokenOk, runCount}` for debugging.
-- `POST /garmin/webhook` — receives Garmin's activity push notifications; also implement
-  whatever registration/verification handshake Garmin's docs require for the endpoint.
-- `GET /auth/start` → Garmin OAuth consent → `GET /auth/callback` stores tokens in KV.
-  One-time, done by Anthony in a browser.
-- `POST /admin/backfill` (Bearer) — pulls historical activities via the API's backfill
-  mechanism for first-run seeding (Garmin's backfill is windowed/rate-limited — follow
-  the docs' pattern).
+- `GET /health` — unauthenticated `{ok, lastPoll, tokenOk, runCount}` for debugging.
+- `GET /auth/start` → Strava OAuth consent → `GET /auth/callback` stores the refresh
+  token in KV. One-time, done by Anthony in a browser.
+- `POST /admin/backfill?n=60` (Bearer) — pulls the last N activities for first-run
+  seeding.
 
-Worker internals (implementation notes — **verify every Garmin specific against the
-current Garmin Connect Developer docs at build time**: OAuth flavour (they migrated
-toward OAuth2/PKCE), webhook payload shape, backfill windows, field names and units.
-This doc is design-authoritative, not API-authoritative):
+Worker internals (implementation notes — **verify current Strava specifics against
+their live API docs at build time**: endpoint paths, scope names, token lifetimes,
+field names/units. This doc is design-authoritative, not API-authoritative):
 
-- Secrets: `GARMIN_CLIENT_ID` / `GARMIN_CLIENT_SECRET` (names per their scheme),
-  `BRIDGE_TOKEN` (long random string Anthony generates). KV namespace bound as `KV`.
-- On webhook ping: fetch/extract the activity summary, filter to running activity types,
-  normalize (metres→miles 1dp, cadence to steps/min — check whether Garmin reports
-  single-leg or total), upsert into KV as `run:<gid>`, update `lastPing`.
-- Daily cron: reconciliation backfill of the recent window so a missed ping can't lose a
-  run; also any token-refresh housekeeping the OAuth flavour needs.
+- Secrets: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `BRIDGE_TOKEN` (long random
+  string Anthony generates). KV namespace bound as `KV`.
+- Token dance: access tokens are short-lived; refresh on expiry/401, persist the rolling
+  refresh token in KV. Scope must cover reading all own activities (historically
+  `activity:read_all` — verify).
+- Cron (~*/15): fetch latest ~10 activities, filter to run types (`Run`, `TrailRun`,
+  `VirtualRun`), normalize (metres→miles 1dp; **Strava's run cadence is per-leg —
+  double it for steps/min, verify**), upsert into KV as `run:<gid>`, update `lastPoll`.
 - Nothing in the Worker is ever deleted by the client; the bridge is read-only from the
   client's perspective. A nice side effect: **KV is now a second backup** of the run
   history, independent of the email backups.
@@ -270,11 +263,14 @@ warm push on a planned morning ("Trainers by the door — today's the day you pi
 Opt-in, one per planned day, never on unplanned days, never guilt. **Do not build this in
 the same pass as B20–B22.** Ship the sync, live with it, then decide.
 
-Also parked: gear filtering per shoe (revisit with backlog #7 shoe shelf, pending what
-the Activity API exposes), and the **Health API wellness scope** — body battery /
-training readiness feeding *kind* readiness-aware nudges. That last one is a natural
-extension now the bridge is Garmin-native, and it's the concrete payoff of choosing
-route A; it still waits until the core loop has proven itself.
+Also parked: gear filtering per shoe (entries store Strava `gear`; revisit with backlog
+#7 shoe shelf), and the **wellness side-channel** — a small daily `garth` job on
+Anthony's PC (route E, §1) POSTing a body-battery / training-readiness snapshot to the
+bridge, feeding *kind* readiness-aware nudges. Daily latency is exactly right for a
+morning nudge, the unofficial auth risk is isolated (if the job breaks, only wellness
+pauses — runs are untouched), and credentials never leave Anthony's own machine. This is
+how the watch's deep data eventually pays off natively. It still waits until the core
+loop has proven itself.
 
 ## 6. What NOT to build — guardrails for the implementer
 
@@ -293,30 +289,31 @@ route A; it still waits until the core loop has proven itself.
 
 Nobody else can do these:
 
-1. **Today, before anything else: apply to the Garmin Connect Developer Program**
-   (free — search "Garmin Connect Developer Program apply"). Describe it honestly:
-   personal single-user training-motivation PWA, needs activity summaries for the
-   applicant's own account. This is the long pole; everything else runs in parallel
-   while you wait.
-2. Cloudflare dashboard: create a Worker (`tread-bridge`) and a KV namespace bound as
-   `KV`; set `BRIDGE_TOKEN` (generate a long random string); add the daily cron trigger;
-   paste `bridge/worker.js` when Opus produces it. (The Garmin client id/secret get
-   added as secrets once approval lands.)
-3. Once approved: visit `/auth/start` in a browser and consent, register the webhook URL
-   per Garmin's flow, then run the backfill command Opus gives you to seed history.
-4. Paste the bridge URL + token into Tread's new Garmin settings dialog.
+1. **Create the Strava pipe account**: sign up free, then in privacy settings default
+   every activity to private ("Only You") — it's transport, not social. In Garmin
+   Connect: Settings → Connected Apps → connect Strava so activities auto-sync.
+2. Create a Strava API application (instant, free, from your account's API settings) →
+   note client ID + secret.
+3. Cloudflare dashboard: create a Worker (`tread-bridge`) and a KV namespace bound as
+   `KV`; set the three secrets (`STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`,
+   `BRIDGE_TOKEN` — generate a long random string for the last); add the ~15-min cron
+   trigger; paste `bridge/worker.js` when Opus produces it.
+4. Visit `/auth/start` once in a browser and approve; then run the backfill command Opus
+   gives you to seed history.
+5. Paste the bridge URL + token into Tread's new Garmin settings dialog.
 
-**Fallback path only if the application fails (§8):** enable Garmin→Strava auto-sync in
-Garmin Connect, create a Strava API app (instant), and Opus swaps the ingest adapter —
-no client changes.
+(Optional, unrelated to the pipeline: run GarminDB locally now and then as a personal
+archive of your full FIT history — a good data-ownership habit, and the same `garth`
+login it uses is what the parked wellness side-channel (§5) would build on.)
 
 ## 8. Risks
 
 | Risk | Mitigation |
 |---|---|
-| **Garmin developer application is rejected or slow.** Approval for hobby projects is likely but not guaranteed; turnaround is typically days, occasionally weeks. | The build order (§1) means nothing blocks: the whole client ships against fixtures, and manual logging works throughout. Trigger: if there's no approval after ~3 weeks and Anthony wants automation now, wire the Strava fallback adapter — same contract, no client changes, and it can be un-wired later if approval eventually lands. |
-| Garmin API details in this doc are stale | Opus verifies OAuth flavour, webhook shape, backfill limits and field names against the live developer docs at build time; this doc is design-authoritative, not API-authoritative. |
-| Missed webhook pings | Daily reconciliation backfill; manual add always works. |
-| Token/auth bugs strand the bridge | `/health` exposes token state; cron housekeeping retries; worst case re-run `/auth/start`. |
+| Strava API details in this doc are stale | Opus verifies endpoints/scopes/fields against the live docs at build time; this doc is design-authoritative, not API-authoritative. |
+| Garmin→Strava sync detaches or hiccups | The hop is phone-side and historically very reliable; polling reconciles missed windows; `/health` shows `lastPoll`; arrivals visibly stopping is itself the alarm. Manual add always works. |
+| Strava tightens API terms | Recent tightenings target AI-training and Strava-replica apps; a single-user personal transport pipe is squarely inside normal use. Poll conservatively regardless. |
+| Token refresh bugs strand the bridge | `/health` exposes token state; cron retries; worst case re-run `/auth/start`. |
 | Double counting during transition | Merge rules in §2.3; verified with fixtures. |
+| Future wellness side-channel breaks (unofficial `garth` auth) | Parked feature, isolated by design (§5): only wellness pauses; runs and the core loop are untouched. |
 | Scope creep into dashboard-land | §0 and §6. The reviewer question for every addition: *does this get him out the door on a bad day?* |
