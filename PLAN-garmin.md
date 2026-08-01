@@ -48,73 +48,81 @@ Two existing CLAUDE.md positions are consciously amended by this plan:
 | | Route | Verdict |
 |---|---|---|
 | A | **Official Garmin Connect Developer API.** Native, richest, wellness-capable. | **Rejected — business-gated.** The developer-program application is explicitly for companies; Anthony checked the form and confirmed. Not worth misrepresenting a hobby app to sneak through. Revisit only if Garmin ever opens individual access. |
-| B | **Strava as a pipe.** Garmin→Strava auto-sync is built-in, phone-side and near-instant; Strava's API is self-service (an app in minutes). Run summaries carry distance, moving time, avg/max HR, cadence, elevation — everything B20–B22 shows. | **✅ Chosen for run ingest.** Framed honestly: Strava here is *transport plumbing*, not a platform — free account, every activity default-private, zero social use, set up once and never opened again. |
+| B | **Strava as a pipe.** Garmin→Strava auto-sync plus Strava's self-service API. Fully-supported APIs on both hops — the most institutionally robust route. But it adds a third-party account Anthony doesn't want and can never carry wellness data. | **Break-glass fallback only.** The account isn't even created unless route E ever dies for good (§8). |
 | C | Manual `.fit` share into the PWA (Web Share Target + inline FIT parser). | Rejected — no backend, but *manual*, which defeats the entire point. |
 | D | Unofficial Garmin login from the Worker itself. | Rejected — credential-holding in the cloud, and Garmin's bot protection is hostile to datacenter IPs like a Worker's. |
-| E | **GarminDB / `garth` PC relay** (the Reddit recommendation). `garth` performs Garmin's own app-style login (unofficial); GarminDB batch-downloads FIT + wellness into local SQLite. A scheduled PC script could push runs to the bridge. | **Rejected for run ingest** — it only runs while the PC is awake, so runs land hours-to-a-day late, which kills the arrival ritual (§3); unofficial auth adds fragility. **Earmarked for the wellness side-channel** (§5), where daily latency is exactly fine. GarminDB is also worth running occasionally as a *personal archive* of FIT history — good instinct, just not Tread's pipeline. |
+| E | **`garth` relay on Anthony's always-on PC** (the approach GarminDB is built on). A small scheduled Python script performs Garmin's own app-style login via `garth` (unofficial, actively maintained), polls Garmin Connect for recent activities every ~10 min, normalizes, and POSTs them to the bridge. Credentials and tokens never leave Anthony's machine. | **✅ Chosen.** Anthony's PC doubles as his Plex server — always on — so relay latency matches a cloud poll. Native end-to-end, no third-party account, and the future wellness side-channel (§5) becomes *the same script* fetching one more thing daily. |
 
-*The principle that settles it — match each source to the latency its feature needs.*
-The arrival ritual needs **minutes**, and with the official API closed to individuals,
-only the phone-side Garmin→Strava hop delivers minutes. Wellness nudges (parked, §5)
-need only **"this morning"**, which a small daily `garth` job on Anthony's PC can serve
-natively — so the watch's deep data still pays off later without Strava ever carrying it.
+*How the verdict moved (twice):* the official API fell to the business gate; the PC
+relay was initially rejected on latency ("PC must be awake → runs arrive hours late →
+the arrival ritual dies") — then Anthony pointed out the PC is an always-on Plex server,
+which dissolves that objection entirely. The honest residual cost of E is the unofficial
+auth: Garmin can change login internals and break `garth` for a few days until the
+library updates. The failure mode is graceful (arrivals pause, Tread still works, manual
+add exists, catch-up on recovery), and route B remains documented as break-glass.
 
-**On the FIT-file assumption:** we still do *not* need FIT parsing or per-second streams.
-Strava's run **summaries** carry every insight this plan shows. Nothing in B20–B22 needs
-more.
+**On the FIT-file assumption:** we still do *not* need FIT parsing or per-second
+streams. Garmin Connect's activity **summaries** (as `garth` returns them) carry every
+insight this plan shows. GarminDB's full FIT archive is a nice *personal backup* habit,
+but it's not Tread's pipeline.
 
 ### Chosen shape
 
 ```
-Forerunner 970 ──auto──▶ Garmin Connect ──auto (phone)──▶ Strava (private, unused)
-                                                            │ (poll, cron ~15 min)
-                                                     tread-bridge (CF Worker + KV)
-                                                            │ GET /runs?since=… (Bearer)
-                                                      Tread PWA (fetch on open;
-                                                             offline-first)
-        [parked, §5]  PC (daily garth job) ──wellness snapshot──▶ tread-bridge
+Forerunner 970 ──auto──▶ Garmin Connect (cloud)
+                              ▲ poll every ~10 min (garth, unofficial login)
+                        PC relay — bridge/relay.py on the always-on Plex box
+                              │ POST /ingest  (Bearer BRIDGE_TOKEN)
+                        tread-bridge (CF Worker + KV)
+                              │ GET /runs?since=…  (Bearer)
+                        Tread PWA (fetch on open; offline-first)
+
+        [parked, §5]  the same relay adds a daily wellness snapshot → POST /wellness
 ```
 
-- **Polling, not webhooks, in v1.** A ~15-minute cron poll of "latest N activities" is
-  ~96 requests/day (far inside Strava's limits for one user), has no subscription
-  choreography, and self-heals missed events. Latency is minutes — all the arrival
-  ritual needs, since the payoff moment is *the next time he opens Tread*. Webhooks are
-  a v1.1 upgrade only if latency ever annoys.
+- **The relay pushes; the Worker never holds Garmin credentials.** `relay.py` runs on
+  Windows Task Scheduler every ~10 min: `garth` login (token cached locally, ~year-long;
+  occasional interactive re-auth), fetch recent activities, filter to runs, normalize to
+  the contract below, POST the batch to the bridge. The Worker just authenticates,
+  upserts into KV, serves `GET /runs`. Missed windows self-heal because the relay always
+  asks for "recent N", not "since last success" alone.
 - **The ingest side is an adapter.** The client's only contract is `GET /runs` plus the
-  normalized shape below. The parked wellness side-channel (§5) would be a second,
-  independent ingest path into the same KV — its failure or absence never touches runs.
-- **House style extends to the Worker**: one plain-JS file, `bridge/worker.js`, no npm, no
-  build step, deployable by pasting into the Cloudflare dashboard. `bridge/` is **not** a
-  Pages-deployable file — Opus: amend the CLAUDE.md hard rule to say the *Pages* deploy
-  set is exactly the five files, and that `bridge/worker.js` deploys separately to
-  Cloudflare.
+  normalized shape below. If `garth` ever breaks for good, the break-glass Strava
+  adapter (§1.B) replaces the relay — the Worker gains a poller, the client never knows.
+- **House style extends to the bridge**: two small files, `bridge/worker.js` (plain JS,
+  no npm, paste-deployable in the Cloudflare dashboard) and `bridge/relay.py` (Python,
+  stdlib + `garth` only). Neither is Pages-deployable — Opus: amend the CLAUDE.md hard
+  rule to say the *Pages* deploy set is exactly the five files, and that `bridge/`
+  deploys separately (Worker → Cloudflare, relay → Anthony's PC).
 
 ### Build order (fixtures first)
 
 Everything the client needs — B20 merge logic and settings, the B21 arrival ritual, the
 B22 insight — is built and verified against the bridge's `?demo=1` fixtures, which need
-no credentials at all. The live Strava adapter is wired last, once the client work is
-proven. Manual logging works throughout, so nothing is ever broken mid-build.
+no credentials at all. The live relay is wired last, once the client work is proven.
+Manual logging works throughout, so nothing is ever broken mid-build.
 
 ### Data contract (the only coupling between Worker and client)
 
 Normalized run, as stored in KV and returned by the bridge:
 
 ```json
-{ "gid": "strava-14963210055", "src": "strava",
+{ "gid": "garmin-14963210055", "src": "garmin",
   "d": 1756725600000,        // epoch ms, activity start
   "m": 2.3,                  // miles, 1dp
-  "t": 1462,                 // moving time, seconds
+  "t": 1462,                 // moving duration, seconds
   "hr": 156, "hrx": 172,     // avg / max heart rate, bpm (optional)
   "cad": 164,                // avg cadence, steps/min (optional — see units note below)
   "el": 118,                 // elevation gain, feet (optional)
   "name": "Morning Run",     // activity title (optional)
-  "gear": "g12345678"        // Strava gear id (optional — stored now, used later, #7)
+  "gear": "pegasus-40-uuid"  // Garmin gear id (optional — stored now, used later, #7)
 }
 ```
 
-(`src` stays in the shape so a future native source — or the wellness side-channel —
-can coexist; the client treats all sources identically.)
+(`src` stays in the shape so the break-glass Strava adapter — or the wellness
+side-channel — can coexist; the client treats all sources identically. Garmin tracks
+gear natively, which Anthony already uses — the relay includes the gear id if cheaply
+fetchable, else drop and revisit with backlog #7.)
 
 Bridge endpoints (all JSON):
 
@@ -123,24 +131,32 @@ Bridge endpoints (all JSON):
 - `GET /runs?demo=1` — no auth, returns a small hardcoded fixture set. Exists so the
   client can be built and verified in preview without live credentials — it is the
   backbone of the build order above. Keep it.
-- `GET /health` — unauthenticated `{ok, lastPoll, tokenOk, runCount}` for debugging.
-- `GET /auth/start` → Strava OAuth consent → `GET /auth/callback` stores the refresh
-  token in KV. One-time, done by Anthony in a browser.
-- `POST /admin/backfill?n=60` (Bearer) — pulls the last N activities for first-run
-  seeding.
+- `POST /ingest` (Bearer) — the relay's write path: accepts a JSON array of normalized
+  runs, upserts by `gid`, returns `{stored, skipped}`.
+- `GET /health` — unauthenticated `{ok, lastIngest, runCount}` for debugging. "Relay
+  gone quiet" shows up here as a stale `lastIngest`.
+- `POST /wellness` (Bearer) — reserved for the parked §5 side-channel; may be stubbed.
 
-Worker internals (implementation notes — **verify current Strava specifics against
-their live API docs at build time**: endpoint paths, scope names, token lifetimes,
-field names/units. This doc is design-authoritative, not API-authoritative):
+Relay internals (`bridge/relay.py` — **verify `garth` usage and Garmin Connect field
+names/units at build time**; this doc is design-authoritative, not API-authoritative):
 
-- Secrets: `STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`, `BRIDGE_TOKEN` (long random
-  string Anthony generates). KV namespace bound as `KV`.
-- Token dance: access tokens are short-lived; refresh on expiry/401, persist the rolling
-  refresh token in KV. Scope must cover reading all own activities (historically
-  `activity:read_all` — verify).
-- Cron (~*/15): fetch latest ~10 activities, filter to run types (`Run`, `TrailRun`,
-  `VirtualRun`), normalize (metres→miles 1dp; **Strava's run cadence is per-leg —
-  double it for steps/min, verify**), upsert into KV as `run:<gid>`, update `lastPoll`.
+- Python 3, dependencies: `garth` only. Config (env or a small `.ini` beside it):
+  Garmin email, bridge URL, `BRIDGE_TOKEN`. First run performs the interactive `garth`
+  login (handles MFA) and caches tokens locally (~year-long); after that it's headless.
+- Every ~10 min via Windows Task Scheduler: fetch the latest ~10 activities, filter to
+  running types, normalize (metres→miles 1dp; **check whether Connect reports run
+  cadence single-leg or total steps/min**), POST the batch to `/ingest`. Always sends
+  "recent N" so missed windows self-heal; the Worker's upsert makes re-sends harmless.
+- A `--backfill N` flag for first-run seeding of history (replaces the old admin
+  endpoint idea — backfill is just a bigger poll from the same script).
+- Log to a local file, quiet on success; on repeated auth failure print the re-login
+  instruction. Never crash the scheduled task loop.
+
+Worker internals (`bridge/worker.js`):
+
+- One secret: `BRIDGE_TOKEN`. KV namespace bound as `KV`. No Garmin credentials, no
+  OAuth, no cron — the Worker is a dumb authenticated shelf: `POST /ingest` upserts
+  `run:<gid>`, `GET /runs` reads, `lastIngest` timestamp maintained.
 - Nothing in the Worker is ever deleted by the client; the bridge is read-only from the
   client's perspective. A nice side effect: **KV is now a second backup** of the run
   history, independent of the email backups.
@@ -263,14 +279,12 @@ warm push on a planned morning ("Trainers by the door — today's the day you pi
 Opt-in, one per planned day, never on unplanned days, never guilt. **Do not build this in
 the same pass as B20–B22.** Ship the sync, live with it, then decide.
 
-Also parked: gear filtering per shoe (entries store Strava `gear`; revisit with backlog
-#7 shoe shelf), and the **wellness side-channel** — a small daily `garth` job on
-Anthony's PC (route E, §1) POSTing a body-battery / training-readiness snapshot to the
-bridge, feeding *kind* readiness-aware nudges. Daily latency is exactly right for a
-morning nudge, the unofficial auth risk is isolated (if the job breaks, only wellness
-pauses — runs are untouched), and credentials never leave Anthony's own machine. This is
-how the watch's deep data eventually pays off natively. It still waits until the core
-loop has proven itself.
+Also parked: gear filtering per shoe (entries store Garmin `gear`; revisit with backlog
+#7 shoe shelf), and the **wellness side-channel** — now simply the existing relay
+fetching a daily body-battery / training-readiness snapshot and POSTing it to
+`/wellness`, feeding *kind* readiness-aware nudges. No new infrastructure at all: same
+script, same token, one more fetch. This is how the watch's deep data eventually pays
+off natively. It still waits until the core loop has proven itself.
 
 ## 6. What NOT to build — guardrails for the implementer
 
@@ -289,31 +303,31 @@ loop has proven itself.
 
 Nobody else can do these:
 
-1. **Create the Strava pipe account**: sign up free, then in privacy settings default
-   every activity to private ("Only You") — it's transport, not social. In Garmin
-   Connect: Settings → Connected Apps → connect Strava so activities auto-sync.
-2. Create a Strava API application (instant, free, from your account's API settings) →
-   note client ID + secret.
-3. Cloudflare dashboard: create a Worker (`tread-bridge`) and a KV namespace bound as
-   `KV`; set the three secrets (`STRAVA_CLIENT_ID`, `STRAVA_CLIENT_SECRET`,
-   `BRIDGE_TOKEN` — generate a long random string for the last); add the ~15-min cron
-   trigger; paste `bridge/worker.js` when Opus produces it.
-4. Visit `/auth/start` once in a browser and approve; then run the backfill command Opus
-   gives you to seed history.
-5. Paste the bridge URL + token into Tread's new Garmin settings dialog.
+1. Cloudflare dashboard: create a Worker (`tread-bridge`) and a KV namespace bound as
+   `KV`; set the single secret `BRIDGE_TOKEN` (generate a long random string); paste
+   `bridge/worker.js` when Opus produces it. No cron trigger needed — the relay pushes.
+2. On the Plex box: install Python 3 if absent, `pip install garth`, drop `relay.py` and
+   its config (Garmin email, bridge URL, token) where Opus specifies, run it once
+   interactively to complete the Garmin login (MFA handled here; token then cached
+   ~a year), run `--backfill` once to seed history, then add the Task Scheduler job
+   (every 10 min, on boot, run whether logged on or not).
+3. Paste the bridge URL + token into Tread's new Garmin settings dialog.
 
 (Optional, unrelated to the pipeline: run GarminDB locally now and then as a personal
-archive of your full FIT history — a good data-ownership habit, and the same `garth`
-login it uses is what the parked wellness side-channel (§5) would build on.)
+archive of your full FIT history — a good data-ownership habit that rides the same
+`garth` login.)
+
+**Break-glass path only if the `garth` route ever dies for good (§8):** create a
+default-private Strava account, connect it in Garmin Connect, create a Strava API app,
+and Opus swaps the ingest adapter into the Worker — no client changes.
 
 ## 8. Risks
 
 | Risk | Mitigation |
 |---|---|
-| Strava API details in this doc are stale | Opus verifies endpoints/scopes/fields against the live docs at build time; this doc is design-authoritative, not API-authoritative. |
-| Garmin→Strava sync detaches or hiccups | The hop is phone-side and historically very reliable; polling reconciles missed windows; `/health` shows `lastPoll`; arrivals visibly stopping is itself the alarm. Manual add always works. |
-| Strava tightens API terms | Recent tightenings target AI-training and Strava-replica apps; a single-user personal transport pipe is squarely inside normal use. Poll conservatively regardless. |
-| Token refresh bugs strand the bridge | `/health` exposes token state; cron retries; worst case re-run `/auth/start`. |
+| **Garmin changes login internals and `garth` breaks** (the inherent cost of the unofficial route) | Historically the library recovers in days; the failure mode is graceful — arrivals pause, Tread keeps working, manual add exists, and the relay's "recent N" poll catches everything up on recovery. `pip install -U garth` is usually the whole fix; worst case re-run the interactive login. If it ever breaks *permanently*, the break-glass Strava adapter (§1.B/§7) replaces the relay with zero client changes. |
+| Garmin objects to unofficial access | Single user reading his own account's data at ~6 polls/hour — the same pattern GarminDB and its ecosystem have run publicly for years. Low risk, honestly held; the break-glass path exists if policy hardens. |
+| PC/network outage (Plex box down) | Runs queue in Garmin Connect; the next successful poll ingests them. The ritual degrades to "arrives later", never "lost". `/health.lastIngest` makes silence visible. |
+| `garth`/Connect field details in this doc are stale | Opus verifies field names/units (cadence single-leg vs total, distance units) against the live library at build time; this doc is design-authoritative, not API-authoritative. |
 | Double counting during transition | Merge rules in §2.3; verified with fixtures. |
-| Future wellness side-channel breaks (unofficial `garth` auth) | Parked feature, isolated by design (§5): only wellness pauses; runs and the core loop are untouched. |
 | Scope creep into dashboard-land | §0 and §6. The reviewer question for every addition: *does this get him out the door on a bad day?* |
