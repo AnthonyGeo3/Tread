@@ -248,6 +248,15 @@ B19: C25K↔next-run decoupling, one-click advance, and a dual distance input.
 
 ## Backlog — prioritised for the real goal (keep running through and past C25K)
 
+0. **Garmin sync / motivation centre — DESIGNED, next up. Read [PLAN-garmin.md](PLAN-garmin.md)
+   before starting.** Anthony now runs with a Garmin Forerunner 970; the plan (authored by
+   Fable, to be implemented as B20–B22) makes a small Cloudflare Worker bridge
+   (Strava-fed, polling) the automatic run source, relocates the manual-log reward loop
+   into an "arrival ritual" (pour animation + one-tap feel/C25K card), and adds exactly
+   one kind insight (the "easier" EF card). It consciously amends the "no backend" rule
+   (client stays offline-first; bridge is progressive enhancement) and supersedes the
+   framing of items #5 and #12 below.
+
 1. **Export / import backup — shipped in B11–B12.** Delivered as the weekly recap email
    (every send embeds a full JSON backup) plus a `Restore` footer link that reads a backup
    pasted from any recap email. This replaced the originally-planned clipboard copy/paste
@@ -284,9 +293,10 @@ B19: C25K↔next-run decoupling, one-click advance, and a dual distance input.
     prove insufficient — reminders he asked for feel supportive, ones he didn't feel like nagging.
 11. **Share card (M)** — canvas-render the shoe at current fill + stats to a PNG via
     the Web Share API, so finishing a milestone has something to show Amy.
-12. **Strava / Health Connect import (L)** — only if manual logging ever becomes the
-    reason runs go unlogged. For now the 5-second manual log *is* part of the reward
-    loop; don't automate the ritual away.
+12. **Strava / Health Connect import (L)** — **superseded by item #0 / PLAN-garmin.md.**
+    The original caution here ("the 5-second manual log *is* part of the reward loop;
+    don't automate the ritual away") still stands as a design constraint: the plan
+    answers it by relocating the ritual into the arrival moment rather than deleting it.
 
 ### Anti-goals
 
