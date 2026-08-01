@@ -250,12 +250,14 @@ B19: C25K↔next-run decoupling, one-click advance, and a dual distance input.
 
 0. **Garmin sync / motivation centre — DESIGNED, next up. Read [PLAN-garmin.md](PLAN-garmin.md)
    before starting.** Anthony now runs with a Garmin Forerunner 970; the plan (authored by
-   Fable, to be implemented as B20–B22) makes a small Cloudflare Worker bridge
-   (Strava-fed, polling) the automatic run source, relocates the manual-log reward loop
-   into an "arrival ritual" (pour animation + one-tap feel/C25K card), and adds exactly
-   one kind insight (the "easier" EF card). It consciously amends the "no backend" rule
-   (client stays offline-first; bridge is progressive enhancement) and supersedes the
-   framing of items #5 and #12 below.
+   Fable, to be implemented as B20–B22) makes a small Cloudflare Worker bridge fed by the
+   **official Garmin Connect Developer API** (webhook push; Strava only as a break-glass
+   fallback, see the plan's §1/§8) the automatic run source, relocates the manual-log
+   reward loop into an "arrival ritual" (pour animation + one-tap feel/C25K card), and
+   adds exactly one kind insight (the "easier" EF card). The client is built entirely
+   against demo fixtures so Garmin's developer-program approval never blocks the build.
+   It consciously amends the "no backend" rule (client stays offline-first; bridge is
+   progressive enhancement) and supersedes the framing of items #5 and #12 below.
 
 1. **Export / import backup — shipped in B11–B12.** Delivered as the weekly recap email
    (every send embeds a full JSON backup) plus a `Restore` footer link that reads a backup
